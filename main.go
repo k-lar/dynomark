@@ -144,7 +144,7 @@ func parseOrderedLists(lines []string) []string {
 
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-		if matched, _ := regexp.MatchString(`^\d+\.`, trimmedLine); matched {
+		if matched, _ := regexp.MatchString(`^\d+\.\s`, trimmedLine); matched && (!inList || len(line)-len(strings.TrimLeft(line, " ")) <= indentLevel) {
 			if len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem, "\n"))
 				currentItem = nil
@@ -152,15 +152,22 @@ func parseOrderedLists(lines []string) []string {
 			currentItem = append(currentItem, line)
 			inList = true
 			indentLevel = len(line) - len(trimmedLine)
-		} else if inList && (len(line)-len(strings.TrimLeft(line, " ")) > indentLevel || (trimmedLine != "" && !regexp.MustCompile(`^\d+\.`).MatchString(trimmedLine))) {
+		} else if trimmedLine == "" && inList {
 			if len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem, "\n"))
 				currentItem = nil
 			}
 			inList = false
 			indentLevel = 0
-		} else if inList {
+		} else if inList && (strings.HasPrefix(trimmedLine, "") || len(line)-len(strings.TrimLeft(line, " ")) > indentLevel) {
 			currentItem = append(currentItem, line)
+		} else {
+			if len(currentItem) > 0 {
+				items = append(items, strings.Join(currentItem, "\n"))
+				currentItem = nil
+			}
+			inList = false
+			indentLevel = 0
 		}
 	}
 
