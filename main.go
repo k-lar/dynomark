@@ -102,47 +102,67 @@ func parseParagraphs(lines []string) []string {
 }
 
 func parseOrderedLists(lines []string) []string {
-	var orderedLists []string
-	var currentList []string
+	var items []string
+	var currentItem []string
+	inList := false
 
 	for _, line := range lines {
-		if matched, _ := regexp.MatchString(`^\d+\.`, strings.TrimSpace(line)); matched {
-			currentList = append(currentList, strings.TrimSpace(line))
-		} else if strings.TrimSpace(line) == "" {
-			if len(currentList) > 0 {
-				orderedLists = append(orderedLists, strings.Join(currentList, "\n"))
-				currentList = nil
+		trimmedLine := strings.TrimSpace(line)
+		if matched, _ := regexp.MatchString(`^\d+\.`, trimmedLine); matched {
+			if len(currentItem) > 0 {
+				items = append(items, strings.Join(currentItem, "\n"))
+				currentItem = nil
 			}
+			currentItem = append(currentItem, trimmedLine)
+			inList = true
+		} else if inList && (strings.HasPrefix(trimmedLine, "    ") || trimmedLine == "") {
+			currentItem = append(currentItem, trimmedLine)
+		} else {
+			if len(currentItem) > 0 {
+				items = append(items, strings.Join(currentItem, "\n"))
+				currentItem = nil
+			}
+			inList = false
 		}
 	}
 
-	if len(currentList) > 0 {
-		orderedLists = append(orderedLists, strings.Join(currentList, "\n"))
+	if len(currentItem) > 0 {
+		items = append(items, strings.Join(currentItem, "\n"))
 	}
 
-	return orderedLists
+	return items
 }
 
 func parseUnorderedLists(lines []string) []string {
-	var unorderedLists []string
-	var currentList []string
+	var items []string
+	var currentItem []string
+	inList := false
 
 	for _, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "-") && !strings.HasPrefix(strings.TrimSpace(line), "- [") {
-			currentList = append(currentList, strings.TrimSpace(line))
-		} else if strings.TrimSpace(line) == "" {
-			if len(currentList) > 0 {
-				unorderedLists = append(unorderedLists, strings.Join(currentList, "\n"))
-				currentList = nil
+		trimmedLine := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmedLine, "-") && !strings.HasPrefix(trimmedLine, "- [") {
+			if len(currentItem) > 0 {
+				items = append(items, strings.Join(currentItem, "\n"))
+				currentItem = nil
 			}
+			currentItem = append(currentItem, trimmedLine)
+			inList = true
+		} else if inList && (strings.HasPrefix(trimmedLine, "    ") || trimmedLine == "") {
+			currentItem = append(currentItem, trimmedLine)
+		} else {
+			if len(currentItem) > 0 {
+				items = append(items, strings.Join(currentItem, "\n"))
+				currentItem = nil
+			}
+			inList = false
 		}
 	}
 
-	if len(currentList) > 0 {
-		unorderedLists = append(unorderedLists, strings.Join(currentList, "\n"))
+	if len(currentItem) > 0 {
+		items = append(items, strings.Join(currentItem, "\n"))
 	}
 
-	return unorderedLists
+	return items
 }
 
 func parseFencedCode(lines []string) []string {
@@ -222,11 +242,11 @@ func applyConditions(item string, queryType QueryType, conditions []Condition) b
 	for _, condition := range conditions {
 		switch condition.Operator {
 		case "CONTAINS":
-			if !strings.Contains(item, condition.Value) {
+			if !strings.Contains(strings.ToLower(item), strings.ToLower(condition.Value)) {
 				return false
 			}
 		case "NOT CONTAINS":
-			if strings.Contains(item, condition.Value) {
+			if strings.Contains(strings.ToLower(item), strings.ToLower(condition.Value)) {
 				return false
 			}
 		case "=":
