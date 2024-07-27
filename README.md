@@ -9,10 +9,14 @@ experience to Dataview.
 ## Roadmap
 
 - [ ] Working engine
-    - [ ] LIST support
-    - [ ] TASKS support
+    - [X] LIST support
+    - [X] TASKS support
+    - [X] PARAGRAPH support
+    - [X] ORDEREDLIST support
+    - [X] UNORDEREDLIST support
+    - [X] FENCEDCODE support
+    - [X] Conditional statements
     - [ ] TABLE support
-    - [ ] Conditional statements
-    - [ ] Limits
+    - [X] Limits
 - [ ] Neovim plugin
 - [ ] Query syntax docx
