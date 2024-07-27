@@ -101,28 +101,31 @@ func parseParagraphs(lines []string) []string {
 	return paragraphs
 }
 
-func parseOrderedLists(lines []string) []string {
+func parseUnorderedLists(lines []string) []string {
 	var items []string
 	var currentItem []string
 	inList := false
+	indentLevel := 0
 
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-		if matched, _ := regexp.MatchString(`^\d+\.`, trimmedLine); matched {
+		if strings.HasPrefix(trimmedLine, "-") && !strings.HasPrefix(trimmedLine, "- [") {
 			if len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem, "\n"))
 				currentItem = nil
 			}
-			currentItem = append(currentItem, trimmedLine)
+			currentItem = append(currentItem, line)
 			inList = true
-		} else if inList && (strings.HasPrefix(trimmedLine, "    ") || trimmedLine == "") {
-			currentItem = append(currentItem, trimmedLine)
+			indentLevel = len(line) - len(trimmedLine)
+		} else if inList && (strings.HasPrefix(trimmedLine, "-") || len(line)-len(strings.TrimLeft(line, " ")) > indentLevel || trimmedLine == "") {
+			currentItem = append(currentItem, line)
 		} else {
 			if len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem, "\n"))
 				currentItem = nil
 			}
 			inList = false
+			indentLevel = 0
 		}
 	}
 
@@ -133,28 +136,31 @@ func parseOrderedLists(lines []string) []string {
 	return items
 }
 
-func parseUnorderedLists(lines []string) []string {
+func parseOrderedLists(lines []string) []string {
 	var items []string
 	var currentItem []string
 	inList := false
+	indentLevel := 0
 
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmedLine, "-") && !strings.HasPrefix(trimmedLine, "- [") {
+		if matched, _ := regexp.MatchString(`^\d+\.`, trimmedLine); matched {
 			if len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem, "\n"))
 				currentItem = nil
 			}
-			currentItem = append(currentItem, trimmedLine)
+			currentItem = append(currentItem, line)
 			inList = true
-		} else if inList && (strings.HasPrefix(trimmedLine, "    ") || trimmedLine == "") {
-			currentItem = append(currentItem, trimmedLine)
-		} else {
+			indentLevel = len(line) - len(trimmedLine)
+		} else if inList && (len(line)-len(strings.TrimLeft(line, " ")) > indentLevel || (trimmedLine != "" && !regexp.MustCompile(`^\d+\.`).MatchString(trimmedLine))) {
 			if len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem, "\n"))
 				currentItem = nil
 			}
 			inList = false
+			indentLevel = 0
+		} else if inList {
+			currentItem = append(currentItem, line)
 		}
 	}
 
