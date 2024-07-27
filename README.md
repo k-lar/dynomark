@@ -1,10 +1,10 @@
 # DynoMark
 
-Dynomark strives to be a markdown query language engine, compatible with obsidian's
-[Dataview plugin's](https://github.com/blacksmithgu/obsidian-dataview) syntax.
+Dynomark strives to be a markdown query language engine, similar to obsidian's
+[Dataview plugin](https://github.com/blacksmithgu/obsidian-dataview).
 
 This program can be used with editors like neovim and emacs to provide a similar
-experience to Dataview.
+experience to Dataview (but very barebones for now).
 
 ## Roadmap
 
