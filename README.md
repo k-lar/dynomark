@@ -139,6 +139,23 @@ Result:
 - [x] Create test markdown file
 ```
 
+Query: `TASK FROM "examples/test.md" WHERE CONTAINS "CLI" OR CONTAINS "unit"`
+
+Result:
+
+```
+- [ ] Write unit tests
+- [x] Design CLI interface
+```
+
+Query: `TASK FROM "examples/test.md" WHERE CONTAINS "CLI" OR CONTAINS "unit" AND NOT CHECKED`A
+
+Result:
+
+```
+- [ ] Write unit tests
+```
+
 Query: `FENCEDCODE FROM "examples/test.md"`
 
 Result:
