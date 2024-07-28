@@ -26,6 +26,7 @@ type Condition struct {
 	Field    string
 	Operator string
 	Value    string
+	IsOr     bool
 }
 
 type Query struct {
@@ -252,33 +253,40 @@ func parseMarkdownFile(path string) ([]string, error) {
 }
 
 func applyConditions(item string, queryType QueryType, conditions []Condition) bool {
-	for _, condition := range conditions {
+	if len(conditions) == 0 {
+		return true
+	}
+
+	var result bool
+	for i, condition := range conditions {
+		conditionMet := false
 		switch condition.Operator {
 		case "CONTAINS":
-			if !strings.Contains(strings.ToLower(item), strings.ToLower(condition.Value)) {
-				return false
-			}
+			conditionMet = strings.Contains(strings.ToLower(item), strings.ToLower(condition.Value))
 		case "NOT CONTAINS":
-			if strings.Contains(strings.ToLower(item), strings.ToLower(condition.Value)) {
-				return false
-			}
+			conditionMet = !strings.Contains(strings.ToLower(item), strings.ToLower(condition.Value))
 		case "=":
 			if condition.Field == "status" && queryType == TASK {
 				isChecked := strings.Contains(item, "[x]") || strings.Contains(item, "[X]")
-				if condition.Value == "checked" && !isChecked {
-					return false
-				}
+				conditionMet = condition.Value == "checked" && isChecked
 			}
 		case "!=":
 			if condition.Field == "status" && queryType == TASK {
 				isChecked := strings.Contains(item, "[x]") || strings.Contains(item, "[X]")
-				if condition.Value == "checked" && isChecked {
-					return false
-				}
+				conditionMet = condition.Value == "checked" && !isChecked
 			}
 		}
+
+		if i == 0 {
+			result = conditionMet
+		} else if condition.IsOr {
+			result = result || conditionMet
+		} else {
+			result = result && conditionMet
+		}
 	}
-	return true
+
+	return result
 }
 
 func filterContent(content []string, queryType QueryType, conditions []Condition) []string {
@@ -366,18 +374,25 @@ func parseConditions(words []string) ([]Condition, error) {
 	var current Condition
 	expectingValue := false
 	notFlag := false
+	orFlag := false
 
 	for _, word := range words {
 		upperWord := strings.ToUpper(word)
 		if upperWord == "AND" {
 			continue
 		}
+		if upperWord == "OR" {
+			orFlag = true
+			continue
+		}
 		if expectingValue {
 			current.Value = strings.Trim(word, "\"")
+			current.IsOr = orFlag
 			conditions = append(conditions, current)
 			current = Condition{}
 			expectingValue = false
 			notFlag = false
+			orFlag = false
 		} else if upperWord == "NOT" {
 			notFlag = true
 		} else if upperWord == "CONTAINS" {
@@ -397,8 +412,10 @@ func parseConditions(words []string) ([]Condition, error) {
 				current.Operator = "="
 			}
 			current.Value = "checked"
+			current.IsOr = orFlag
 			conditions = append(conditions, current)
 			current = Condition{}
+			orFlag = false
 		} else {
 			current.Field = word
 		}
