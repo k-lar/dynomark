@@ -2,7 +2,8 @@
 
 ## Tasks
 
-- [ ] Implement DQL parser
+- [ ] Implement DynoMark parser
+- [ ] Implement DynoMark parser but better
 - [x] Create test markdown file
 - [ ] Write unit tests
 - [x] Design CLI interface
@@ -36,6 +37,6 @@ Here's a sample code block:
 
 ```go
 func main() {
-    fmt.Println("Hello, DQL!")
+    fmt.Println("Hello, DynoMark!")
 }
 ```
