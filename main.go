@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -325,34 +326,26 @@ func readFromPipe() (string, error) {
 	return string(bytes), nil
 }
 
-func readFromInteractive() (string, error) {
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Println("Enter your DQL query (press Ctrl+D to execute):")
-
-	var queryLines []string
-	for scanner.Scan() {
-		line := scanner.Text()
-		queryLines = append(queryLines, line)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
-
-	return strings.Join(queryLines, "\n"), nil
-}
-
 func main() {
 	var query string
 	var err error
 
+	flag.StringVar(&query, "query", "", "The query string to be processe")
+	flag.StringVar(&query, "q", "", "The query string to be processed (shorthand)")
+
+	flag.Parse()
+
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		// Data is being piped to stdin
-		query, err = readFromPipe()
-	} else {
-		// Interactive mode
-		query, err = readFromInteractive()
+		if query == "" {
+			// Data is being piped to stdin
+			query, err = readFromPipe()
+		} else {
+			fmt.Println("ERROR: Can't read from pipe when query is given as a parameter already.")
+		}
+	} else if query == "" {
+		fmt.Println("No query provided. Use -q or --query to specify the query string.")
+		os.Exit(1)
 	}
 
 	if err != nil {
