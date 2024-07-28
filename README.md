@@ -16,9 +16,9 @@ experience to Dataview (but very barebones for now).
     - [X] UNORDEREDLIST support
     - [X] FENCEDCODE support
     - [X] Limits
-    - [ ] Conditional statements
+    - [X] Conditional statements
         - [X] AND
-        - [ ] OR
+        - [X] OR
     - [ ] TABLE support
 - [ ] Neovim plugin
 - [ ] Query syntax doc
