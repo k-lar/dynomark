@@ -6,6 +6,26 @@ Dynomark strives to be a markdown query language engine, similar to obsidian's
 This program can be used with editors like neovim and emacs to provide a similar
 experience to Dataview (but very barebones for now).
 
+## Installation
+
+Requirements:
+- Go (1.22.5)
+
+```bash
+# Clone the repository
+git clone https://github.com/k-lar/dynomark
+cd dynomark/
+
+# Compile the program
+make
+
+# Install the program
+sudo make install
+
+# If you want to uninstall the program
+sudo make uninstall
+```
+
 ## Roadmap
 
 - [ ] Completed engine
