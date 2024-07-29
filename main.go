@@ -217,7 +217,7 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, error) {
 				return nil, err
 			}
 			for _, file := range files {
-				results = append(results, filepath.Base(file))
+				results = append(results, "- "+filepath.Base(file))
 			}
 		} else if queryType == LIST {
 			results = append(results, filepath.Base(path))
