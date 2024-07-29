@@ -8,7 +8,7 @@ experience to Dataview (but very barebones for now).
 
 ## Roadmap
 
-- [ ] Working engine
+- [ ] Completed engine
     - [X] LIST support
     - [X] TASKS support
     - [X] PARAGRAPH support
@@ -19,11 +19,11 @@ experience to Dataview (but very barebones for now).
     - [X] Conditional statements
         - [X] AND
         - [X] OR
-    - [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
     - [ ] ORDER BY
         - [ ] ASCENDING
         - [ ] DESCENDING
     - [ ] TABLE support
+- [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
 - [ ] Query syntax doc
 
 ## Examples
