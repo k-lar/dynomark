@@ -19,8 +19,11 @@ experience to Dataview (but very barebones for now).
     - [X] Conditional statements
         - [X] AND
         - [X] OR
+    - [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
+    - [ ] ORDER BY
+        - [ ] ASCENDING
+        - [ ] DESCENDING
     - [ ] TABLE support
-- [ ] Neovim plugin
 - [ ] Query syntax doc
 
 ## Examples
