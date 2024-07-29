@@ -101,9 +101,9 @@ Query: `LIST FROM "examples/"`
 Result:
 
 ```
-movie_reviews.md
-tasks.md
-test.md
+- movie_reviews.md
+- tasks.md
+- test.md
 ```
 
 Query: `TASK FROM "examples/test.md" WHERE NOT CHECKED`
