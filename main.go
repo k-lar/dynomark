@@ -216,17 +216,29 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			for _, file := range files {
-				results = append(results, "- "+filepath.Base(file))
+			if queryType == LIST {
+				for _, file := range files {
+					results = append(results, "- "+filepath.Base(file))
+				}
+			} else {
+				for _, file := range files {
+					content, err := parseMarkdownContent(file, queryType)
+					if err != nil {
+						return nil, err
+					}
+					results = append(results, content...)
+				}
 			}
-		} else if queryType == LIST {
-			results = append(results, filepath.Base(path))
 		} else {
-			content, err := parseMarkdownContent(path, queryType)
-			if err != nil {
-				return nil, err
+			if queryType == LIST {
+				results = append(results, filepath.Base(path))
+			} else {
+				content, err := parseMarkdownContent(path, queryType)
+				if err != nil {
+					return nil, err
+				}
+				results = append(results, content...)
 			}
-			results = append(results, content...)
 		}
 	}
 
