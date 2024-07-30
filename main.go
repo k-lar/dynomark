@@ -55,6 +55,8 @@ func parseMarkdownContent(path string, queryType QueryType) ([]string, error) {
 		return nil, err
 	}
 
+	lines = stripYAMLFrontmatter(lines)
+
 	switch queryType {
 	case TASK:
 		return parseTasks(lines), nil
@@ -69,6 +71,22 @@ func parseMarkdownContent(path string, queryType QueryType) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("unsupported query type: %s", queryType)
 	}
+}
+
+func stripYAMLFrontmatter(lines []string) []string {
+	if len(lines) > 0 && lines[0] == "---" {
+		endIndex := -1
+		for i := 1; i < len(lines); i++ {
+			if lines[i] == "---" {
+				endIndex = i
+				break
+			}
+		}
+		if endIndex != -1 {
+			return lines[endIndex+1:]
+		}
+	}
+	return lines
 }
 
 func parseTasks(lines []string) []string {
@@ -111,7 +129,7 @@ func parseUnorderedLists(lines []string) []string {
 
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmedLine, "-") && !strings.HasPrefix(trimmedLine, "- [") {
+		if strings.HasPrefix(trimmedLine, "-") && !strings.HasPrefix(trimmedLine, "- [") && trimmedLine != "---" {
 			if len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem, "\n"))
 				currentItem = nil
