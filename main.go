@@ -503,14 +503,18 @@ func parseQuery(query string) (Query, error) {
 	}
 
 	sources := words[fromIndex+1 : sourceEnd]
-	for i, source := range sources {
+	for _, source := range sources {
 		if strings.ToUpper(source) == "AND" {
 			continue
 		}
-		q.From = append(q.From, strings.Trim(source, "\""))
-		if i+1 < len(sources) && strings.ToUpper(sources[i+1]) != "AND" {
-			break
+
+		if strings.HasSuffix(source, ",") {
+			source = source[:len(source)-1]
+			q.From = append(q.From, strings.Trim(source, "\""))
+			continue
 		}
+
+		q.From = append(q.From, strings.Trim(source, "\""))
 	}
 
 	// Parse fields (if any)
