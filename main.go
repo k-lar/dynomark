@@ -42,48 +42,117 @@ type Query struct {
 	Limit      int
 }
 
-func parseMarkdownContent(path string, queryType QueryType) ([]string, error) {
+func parseMarkdownContent(path string, queryType QueryType) ([]string, Metadata, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 	var lines []string
+	metadata := make(Metadata)
+	inFrontMatter := false
+	frontMatterLines := []string{}
+
 	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+		line := scanner.Text()
+		lines = append(lines, line)
+
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "---" {
+			inFrontMatter = !inFrontMatter
+			if !inFrontMatter {
+				// Process YAML front matter
+				for _, fmLine := range frontMatterLines {
+					if strings.Contains(fmLine, ":") {
+						parts := strings.SplitN(fmLine, ":", 2)
+						key := strings.ToLower(strings.TrimSpace(parts[0]))
+						value := strings.TrimSpace(parts[1])
+						value = strings.Trim(value, `"`)
+						if b, err := strconv.ParseBool(value); err == nil {
+							metadata[key] = b
+						} else if i, err := strconv.Atoi(value); err == nil {
+							metadata[key] = i
+						} else {
+							metadata[key] = value
+						}
+					}
+				}
+			}
+			continue
+		}
+
+		// Try to convert the value to a boolean or an integer if possible
+		// Try to convert the value to a boolean or an integer if possible
+		// Try to convert the value to a boolean or an integer if possible
+		// Try to convert the value to a boolean or an integer if possible
+		if inFrontMatter {
+			frontMatterLines = append(frontMatterLines, trimmedLine)
+		} else {
+			parseMetadataLine(trimmedLine, metadata)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	// Add file-related metadata
+	addFileMetadata(path, metadata)
+
+	// Strip YAML frontmatter from lines
 	lines = stripYAMLFrontmatter(lines)
 
+	var parsedContent []string
 	switch queryType {
 	case TASK:
-		return parseTasks(lines), nil
+		parsedContent = parseTasks(lines)
 	case PARAGRAPH:
-		return parseParagraphs(lines), nil
+		parsedContent = parseParagraphs(lines)
 	case ORDEREDLIST:
-		return parseOrderedLists(lines), nil
+		parsedContent = parseOrderedLists(lines)
 	case UNORDEREDLIST:
-		return parseUnorderedLists(lines), nil
+		parsedContent = parseUnorderedLists(lines)
 	case FENCEDCODE:
-		return parseFencedCode(lines), nil
+		parsedContent = parseFencedCode(lines)
 	default:
-		return nil, fmt.Errorf("unsupported query type: %s", queryType)
+		return nil, nil, fmt.Errorf("unsupported query type: %s", queryType)
 	}
+
+	return parsedContent, metadata, nil
 }
 
 func parseMetadataLine(line string, metadata Metadata) {
-	parts := strings.SplitN(line, "::", 2)
+	if strings.HasPrefix(line, "**") && strings.Contains(line, "::") {
+		line = strings.Trim(line, "* ")
+		parseMetadataPair(line, metadata)
+	} else if strings.HasPrefix(line, "[") && strings.Contains(line, "::") {
+		line = strings.Trim(line, "[] ")
+		parts := strings.Split(line, "] | [")
+		for _, part := range parts {
+			parseMetadataPair(part, metadata)
+		}
+	} else if strings.Contains(line, "[") && strings.Contains(line, "::") {
+		for strings.Contains(line, "[") && strings.Contains(line, "::") {
+			start := strings.Index(line, "[")
+			end := strings.Index(line, "]")
+			if start != -1 && end != -1 && start < end {
+				inlineMetadata := line[start+1 : end]
+				parseMetadataPair(inlineMetadata, metadata)
+				line = line[end+1:]
+			} else {
+				break
+			}
+		}
+	}
+}
+
+func parseMetadataPair(pair string, metadata Metadata) {
+	parts := strings.SplitN(pair, "::", 2)
 	if len(parts) == 2 {
-		key := strings.TrimSpace(strings.Trim(parts[0], "*"))
-		key = strings.ToLower(key)
+		key := strings.ToLower(strings.TrimSpace(strings.Trim(parts[0], "*")))
 		value := strings.TrimSpace(parts[1])
-		// Try to convert the value to a boolean or an integer if possible
 		if b, err := strconv.ParseBool(value); err == nil {
 			metadata[key] = b
 		} else if i, err := strconv.Atoi(value); err == nil {
@@ -94,85 +163,18 @@ func parseMetadataLine(line string, metadata Metadata) {
 	}
 }
 
-func extractMetadata(path string) (Metadata, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	metadata := make(Metadata)
-	scanner := bufio.NewScanner(file)
-	inFrontMatter := false
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "---" {
-			inFrontMatter = !inFrontMatter
-			continue
-		}
-
-		if inFrontMatter {
-			if strings.Contains(line, ":") {
-				parts := strings.SplitN(line, ":", 2)
-				key := strings.TrimSpace(parts[0])
-				key = strings.ToLower(key)
-				value := strings.TrimSpace(parts[1])
-				value = strings.Trim(value, `"`)
-				if b, err := strconv.ParseBool(value); err == nil {
-					metadata[key] = b
-				} else if i, err := strconv.Atoi(value); err == nil {
-					metadata[key] = i
-				} else {
-					metadata[key] = value
-				}
-			}
-		} else {
-			if strings.HasPrefix(line, "**") && strings.Contains(line, "::") {
-				line = strings.Trim(line, "* ")
-				parseMetadataLine(line, metadata)
-			} else if strings.HasPrefix(line, "[") && strings.Contains(line, "::") {
-				line = strings.Trim(line, "[] ")
-				parts := strings.Split(line, "] | [")
-				for _, part := range parts {
-					parseMetadataLine(part, metadata)
-				}
-			} else if strings.Contains(line, "[") && strings.Contains(line, "::") {
-				for strings.Contains(line, "[") && strings.Contains(line, "::") {
-					start := strings.Index(line, "[")
-					end := strings.Index(line, "]")
-					if start != -1 && end != -1 && start < end {
-						inlineMetadata := line[start+1 : end]
-						parseMetadataLine(inlineMetadata, metadata)
-						line = line[end+1:]
-					} else {
-						break
-					}
-				}
-			}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	// Adding file-related metadata
+func addFileMetadata(path string, metadata Metadata) {
 	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		metadata["file.folder"] = filepath.Dir(path)
+		metadata["file.path"] = path
+		metadata["file.link"] = fmt.Sprintf("[%s](%s)", filepath.Base(path), filepath.Base(filepath.Dir(path)))
+		metadata["file.size"] = fileInfo.Size()
+		metadata["file.ctime"] = fileInfo.ModTime().Format(time.RFC3339)
+		metadata["file.cday"] = fileInfo.ModTime().Format("2006-01-02")
+		metadata["file.mtime"] = fileInfo.ModTime().Format(time.RFC3339)
+		metadata["file.mday"] = fileInfo.ModTime().Format("2006-01-02")
 	}
-
-	metadata["file.folder"] = filepath.Dir(path)
-	metadata["file.path"] = path
-	metadata["file.link"] = fmt.Sprintf("[%s](%s)", filepath.Base(path), filepath.Base(filepath.Dir(path)))
-	metadata["file.size"] = fileInfo.Size()
-	metadata["file.ctime"] = fileInfo.ModTime().Format(time.RFC3339) // Using ModTime as a proxy for creation time
-	metadata["file.cday"] = fileInfo.ModTime().Format("2006-01-02")
-	metadata["file.mtime"] = fileInfo.ModTime().Format(time.RFC3339)
-	metadata["file.mday"] = fileInfo.ModTime().Format("2006-01-02")
-
-	return metadata, nil
 }
 
 func stripYAMLFrontmatter(lines []string) []string {
@@ -342,7 +344,8 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, error) {
 				}
 			} else {
 				for _, file := range files {
-					content, err := parseMarkdownContent(file, queryType)
+					// INFO: This also returns metadata
+					content, _, err := parseMarkdownContent(file, queryType)
 					if err != nil {
 						return nil, err
 					}
@@ -353,7 +356,8 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, error) {
 			if queryType == LIST {
 				results = append(results, filepath.Base(path))
 			} else {
-				content, err := parseMarkdownContent(path, queryType)
+				// INFO: This also returns metadata
+				content, _, err := parseMarkdownContent(path, queryType)
 				if err != nil {
 					return nil, err
 				}
