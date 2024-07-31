@@ -83,10 +83,6 @@ func parseMarkdownContent(path string, queryType QueryType) ([]string, Metadata,
 			continue
 		}
 
-		// Try to convert the value to a boolean or an integer if possible
-		// Try to convert the value to a boolean or an integer if possible
-		// Try to convert the value to a boolean or an integer if possible
-		// Try to convert the value to a boolean or an integer if possible
 		if inFrontMatter {
 			frontMatterLines = append(frontMatterLines, trimmedLine)
 		} else {
@@ -230,31 +226,39 @@ func parseUnorderedLists(lines []string) []string {
 	var currentItem []string
 	inList := false
 	indentLevel := 0
+	trailingEmptyLines := 0
 
-	for _, line := range lines {
+	for i, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmedLine, "-") && !strings.HasPrefix(trimmedLine, "- [") && trimmedLine != "---" {
 			if len(currentItem) > 0 {
-				items = append(items, strings.Join(currentItem, "\n"))
+				items = append(items, strings.Join(currentItem[:len(currentItem)-trailingEmptyLines], "\n"))
 				currentItem = nil
+				trailingEmptyLines = 0
 			}
 			currentItem = append(currentItem, line)
 			inList = true
 			indentLevel = len(line) - len(trimmedLine)
-		} else if inList && (strings.HasPrefix(trimmedLine, "-") || len(line)-len(strings.TrimLeft(line, " ")) > indentLevel || trimmedLine == "") {
+		} else if inList && (strings.HasPrefix(trimmedLine, "-") || len(line)-len(strings.TrimLeft(line, " ")) > indentLevel) {
+			currentItem = append(currentItem[:len(currentItem)-trailingEmptyLines], line)
+			trailingEmptyLines = 0
+		} else if inList && trimmedLine == "" {
 			currentItem = append(currentItem, line)
+			trailingEmptyLines++
 		} else {
 			if len(currentItem) > 0 {
-				items = append(items, strings.Join(currentItem, "\n"))
+				items = append(items, strings.Join(currentItem[:len(currentItem)-trailingEmptyLines], "\n"))
 				currentItem = nil
+				trailingEmptyLines = 0
 			}
 			inList = false
 			indentLevel = 0
 		}
-	}
 
-	if len(currentItem) > 0 {
-		items = append(items, strings.Join(currentItem, "\n"))
+		// Handle the case when we reach the end of the file
+		if i == len(lines)-1 && len(currentItem) > 0 {
+			items = append(items, strings.Join(currentItem[:len(currentItem)-trailingEmptyLines], "\n"))
+		}
 	}
 
 	return items
