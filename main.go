@@ -10,9 +10,12 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type QueryType string
+
+type Metadata map[string]interface{}
 
 const (
 	LIST          QueryType = "LIST"
@@ -21,6 +24,7 @@ const (
 	ORDEREDLIST   QueryType = "ORDEREDLIST"
 	UNORDEREDLIST QueryType = "UNORDEREDLIST"
 	FENCEDCODE    QueryType = "FENCEDCODE"
+	TABLE         QueryType = "TABLE"
 )
 
 type Condition struct {
@@ -71,6 +75,104 @@ func parseMarkdownContent(path string, queryType QueryType) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("unsupported query type: %s", queryType)
 	}
+}
+
+func parseMetadataLine(line string, metadata Metadata) {
+	parts := strings.SplitN(line, "::", 2)
+	if len(parts) == 2 {
+		key := strings.TrimSpace(strings.Trim(parts[0], "*"))
+		key = strings.ToLower(key)
+		value := strings.TrimSpace(parts[1])
+		// Try to convert the value to a boolean or an integer if possible
+		if b, err := strconv.ParseBool(value); err == nil {
+			metadata[key] = b
+		} else if i, err := strconv.Atoi(value); err == nil {
+			metadata[key] = i
+		} else {
+			metadata[key] = value
+		}
+	}
+}
+
+func extractMetadata(path string) (Metadata, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	metadata := make(Metadata)
+	scanner := bufio.NewScanner(file)
+	inFrontMatter := false
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "---" {
+			inFrontMatter = !inFrontMatter
+			continue
+		}
+
+		if inFrontMatter {
+			if strings.Contains(line, ":") {
+				parts := strings.SplitN(line, ":", 2)
+				key := strings.TrimSpace(parts[0])
+				key = strings.ToLower(key)
+				value := strings.TrimSpace(parts[1])
+				value = strings.Trim(value, `"`)
+				if b, err := strconv.ParseBool(value); err == nil {
+					metadata[key] = b
+				} else if i, err := strconv.Atoi(value); err == nil {
+					metadata[key] = i
+				} else {
+					metadata[key] = value
+				}
+			}
+		} else {
+			if strings.HasPrefix(line, "**") && strings.Contains(line, "::") {
+				line = strings.Trim(line, "* ")
+				parseMetadataLine(line, metadata)
+			} else if strings.HasPrefix(line, "[") && strings.Contains(line, "::") {
+				line = strings.Trim(line, "[] ")
+				parts := strings.Split(line, "] | [")
+				for _, part := range parts {
+					parseMetadataLine(part, metadata)
+				}
+			} else if strings.Contains(line, "[") && strings.Contains(line, "::") {
+				for strings.Contains(line, "[") && strings.Contains(line, "::") {
+					start := strings.Index(line, "[")
+					end := strings.Index(line, "]")
+					if start != -1 && end != -1 && start < end {
+						inlineMetadata := line[start+1 : end]
+						parseMetadataLine(inlineMetadata, metadata)
+						line = line[end+1:]
+					} else {
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	// Adding file-related metadata
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	metadata["file.folder"] = filepath.Dir(path)
+	metadata["file.path"] = path
+	metadata["file.link"] = fmt.Sprintf("[%s](%s)", filepath.Base(path), filepath.Base(filepath.Dir(path)))
+	metadata["file.size"] = fileInfo.Size()
+	metadata["file.ctime"] = fileInfo.ModTime().Format(time.RFC3339) // Using ModTime as a proxy for creation time
+	metadata["file.cday"] = fileInfo.ModTime().Format("2006-01-02")
+	metadata["file.mtime"] = fileInfo.ModTime().Format(time.RFC3339)
+	metadata["file.mday"] = fileInfo.ModTime().Format("2006-01-02")
+
+	return metadata, nil
 }
 
 func stripYAMLFrontmatter(lines []string) []string {
@@ -469,6 +571,8 @@ func parseQuery(query string) (Query, error) {
 		q.Type = UNORDEREDLIST
 	case "FENCEDCODE":
 		q.Type = FENCEDCODE
+	case "TABLE":
+		q.Type = TABLE
 	default:
 		return Query{}, fmt.Errorf("invalid query type: %s", words[0])
 	}
