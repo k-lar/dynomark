@@ -39,9 +39,12 @@ sudo make uninstall
     - [X] Conditional statements
         - [X] AND
         - [X] OR
+    - [ ] IS statement (equals / ==)
     - [ ] ORDER BY
         - [ ] ASCENDING
         - [ ] DESCENDING
+    - [X] Metadata parsing
+    - [X] Query multiple files/directories at once
     - [ ] TABLE support
 - [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
 - [ ] Query syntax doc
