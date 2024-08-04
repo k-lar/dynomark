@@ -75,6 +75,7 @@ func Lex(input string) []Token {
 		if strings.HasSuffix(words[i], ",") {
 			words = append(words[:i+1], append([]string{","}, words[i+1:]...)...)
 			words[i] = strings.TrimSuffix(words[i], ",")
+			i++
 		}
 	}
 
