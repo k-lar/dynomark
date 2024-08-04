@@ -174,7 +174,7 @@ Result:
 - [x] Design CLI interface
 ```
 
-Query: `TASK FROM "examples/test.md" WHERE CONTAINS "CLI" OR CONTAINS "unit" AND NOT CHECKED`A
+Query: `TASK FROM "examples/test.md" WHERE CONTAINS "CLI" OR CONTAINS "unit" AND NOT CHECKED`
 
 Result:
 

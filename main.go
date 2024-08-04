@@ -13,6 +13,25 @@ import (
 	"time"
 )
 
+type TokenType int
+
+const (
+	TOKEN_KEYWORD TokenType = iota
+	TOKEN_IDENTIFIER
+	TOKEN_FUNCTION
+	TOKEN_NOT
+	TOKEN_LOGICAL_OP
+	TOKEN_STRING
+	TOKEN_NUMBER
+	TOKEN_COMMA
+	TOKEN_EOF
+)
+
+type Token struct {
+	Type  TokenType
+	Value string
+}
+
 type QueryType string
 
 type Metadata map[string]interface{}
@@ -27,19 +46,192 @@ const (
 	TABLE         QueryType = "TABLE"
 )
 
-type Condition struct {
-	Field    string
-	Operator string
-	Value    string
-	IsOr     bool
+type ASTNode interface{}
+
+type QueryNode struct {
+	Type  QueryType
+	From  []string
+	Where *WhereNode
+	Limit int
 }
 
-type Query struct {
-	Type       QueryType
-	From       []string
-	Fields     []string
-	Conditions []Condition
-	Limit      int
+type WhereNode struct {
+	Conditions []ConditionNode
+}
+
+type ConditionNode struct {
+	IsNegated bool
+	Function  string
+	Value     string
+	LogicalOp string // "AND" or "OR"
+}
+
+func Lex(input string) []Token {
+	var tokens []Token
+	words := strings.Fields(input)
+
+	// If word has comma suffix, split it into two tokens
+	for i := 0; i < len(words); i++ {
+		if strings.HasSuffix(words[i], ",") {
+			words = append(words[:i+1], append([]string{","}, words[i+1:]...)...)
+			words[i] = strings.TrimSuffix(words[i], ",")
+		}
+	}
+
+	got_from := false
+	got_where := false
+	for _, word := range words {
+		switch strings.ToUpper(word) {
+		case "LIST", "TASK", "PARAGRAPH", "ORDEREDLIST", "UNORDEREDLIST", "FENCEDCODE", "TABLE", "LIMIT", "CHECKED":
+			tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: strings.ToUpper(word)})
+		case "FROM":
+			tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: "FROM"})
+			got_from = true
+		case "WHERE":
+			tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: "WHERE"})
+			got_where = true
+		case ",":
+			tokens = append(tokens, Token{Type: TOKEN_COMMA, Value: word})
+		case "CONTAINS":
+			tokens = append(tokens, Token{Type: TOKEN_FUNCTION, Value: "CONTAINS"})
+		case "NOT":
+			tokens = append(tokens, Token{Type: TOKEN_NOT, Value: "NOT"})
+		case "AND", "OR":
+			tokens = append(tokens, Token{Type: TOKEN_LOGICAL_OP, Value: strings.ToUpper(word)})
+		default:
+			if strings.HasPrefix(word, "\"") && strings.HasSuffix(word, "\"") {
+				tokens = append(tokens, Token{Type: TOKEN_STRING, Value: word[1 : len(word)-1]})
+			} else if _, err := strconv.Atoi(word); err == nil {
+				tokens = append(tokens, Token{Type: TOKEN_NUMBER, Value: word})
+			} else if got_from && !got_where {
+				tokens = append(tokens, Token{Type: TOKEN_STRING, Value: word})
+			} else {
+				tokens = append(tokens, Token{Type: TOKEN_IDENTIFIER, Value: word})
+			}
+		}
+	}
+
+	tokens = append(tokens, Token{Type: TOKEN_EOF, Value: ""})
+	return tokens
+}
+
+func Parse(tokens []Token) (*QueryNode, error) {
+	query := &QueryNode{Limit: -1}
+
+	i := 0
+	if tokens[i].Type != TOKEN_KEYWORD {
+		return nil, fmt.Errorf("expected valid query type, got %s", tokens[i].Value)
+	}
+
+	query.Type = parseQueryType(tokens[i].Value)
+	i++
+
+	// Parse FROM clause
+	if tokens[i].Value != "FROM" {
+		return nil, fmt.Errorf("expected FROM, got %s", tokens[i].Value)
+	}
+	i++
+
+	for i < len(tokens) && tokens[i].Type != TOKEN_KEYWORD {
+		if tokens[i].Type == TOKEN_STRING {
+			query.From = append(query.From, tokens[i].Value)
+		}
+		i++
+	}
+
+	// Parse WHERE clause
+	if i < len(tokens) && tokens[i].Value == "WHERE" {
+		whereNode, newIndex, err := parseWhereClause(tokens[i+1:])
+		if err != nil {
+			return nil, err
+		}
+		query.Where = whereNode
+		i += newIndex + 1
+	}
+
+	// Parse LIMIT clause
+	if i < len(tokens) && tokens[i].Value == "LIMIT" {
+		if i+1 >= len(tokens) || tokens[i+1].Type != TOKEN_NUMBER {
+			return nil, fmt.Errorf("invalid LIMIT clause")
+		}
+		limit, _ := strconv.Atoi(tokens[i+1].Value)
+		query.Limit = limit
+	}
+
+	return query, nil
+}
+
+func parseQueryType(value string) QueryType {
+	switch value {
+	case "LIST":
+		return LIST
+	case "TASK":
+		return TASK
+	case "PARAGRAPH":
+		return PARAGRAPH
+	case "ORDEREDLIST":
+		return ORDEREDLIST
+	case "UNORDEREDLIST":
+		return UNORDEREDLIST
+	case "FENCEDCODE":
+		return FENCEDCODE
+	case "TABLE":
+		return TABLE
+	default:
+		return ""
+	}
+}
+
+func parseWhereClause(tokens []Token) (*WhereNode, int, error) {
+	whereNode := &WhereNode{}
+	i := 0
+	var currentCondition ConditionNode
+	var logicalOp string
+
+	for i < len(tokens) && tokens[i].Value != "LIMIT" {
+		switch tokens[i].Type {
+		case TOKEN_NOT:
+			currentCondition.IsNegated = true
+		case TOKEN_FUNCTION:
+			currentCondition.Function = tokens[i].Value
+		case TOKEN_STRING:
+			currentCondition.Value = tokens[i].Value
+			currentCondition.LogicalOp = logicalOp
+			whereNode.Conditions = append(whereNode.Conditions, currentCondition)
+			currentCondition = ConditionNode{}
+			logicalOp = ""
+		case TOKEN_LOGICAL_OP:
+			logicalOp = tokens[i].Value
+		case TOKEN_KEYWORD:
+			if tokens[i].Value == "CHECKED" {
+				currentCondition.Function = "CHECKED"
+				currentCondition.LogicalOp = logicalOp
+				whereNode.Conditions = append(whereNode.Conditions, currentCondition)
+				currentCondition = ConditionNode{}
+				logicalOp = ""
+			}
+		}
+		i++
+	}
+
+	return whereNode, i, nil
+}
+
+func Interpret(ast *QueryNode) (string, error) {
+	content, err := parseMarkdownFiles(ast.From, ast.Type)
+	if err != nil {
+		return "", err
+	}
+
+	if ast.Where != nil {
+		content = filterContent(content, ast.Type, ast.Where.Conditions)
+	}
+
+	if ast.Limit >= 0 && ast.Limit < len(content) {
+		content = content[:ast.Limit]
+	}
+
+	return strings.Join(content, "\n"), nil
 }
 
 func parseMarkdownContent(path string, queryType QueryType) ([]string, Metadata, error) {
@@ -201,21 +393,48 @@ func parseTasks(lines []string) []string {
 
 func parseParagraphs(lines []string) []string {
 	var paragraphs []string
-	var currentParagraph []string
+	var inCodeBlock bool
+	var inList bool
 
 	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			if len(currentParagraph) > 0 {
-				paragraphs = append(paragraphs, strings.Join(currentParagraph, " "))
-				currentParagraph = nil
-			}
-		} else if !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "1.") {
-			currentParagraph = append(currentParagraph, strings.TrimSpace(line))
+		// Skip fenced blocks and their content
+		if strings.HasPrefix(line, "```") {
+			inCodeBlock = !inCodeBlock
+			continue
 		}
-	}
 
-	if len(currentParagraph) > 0 {
-		paragraphs = append(paragraphs, strings.Join(currentParagraph, " "))
+		if inCodeBlock {
+			continue
+		}
+
+		// Skip headings
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Skip unordered list items and tasks
+		if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
+			inList = true
+			continue
+		}
+
+		// Skip ordered list items
+		if matched, _ := regexp.MatchString(`^\d+\.\s`, line); matched {
+			inList = true
+			continue
+		}
+
+		// If we're in a list and the line is empty, we're done with the list
+		if inList && strings.TrimSpace(line) == "" {
+			inList = false
+		}
+
+		// Skip indented lines if we're in a list
+		if inList && len(line)-len(strings.TrimLeft(line, " ")) > 0 {
+			continue
+		}
+
+		paragraphs = append(paragraphs, line)
 	}
 
 	return paragraphs
@@ -373,54 +592,30 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, error) {
 	return results, nil
 }
 
-func parseMarkdownFile(path string) ([]string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var results []string
-	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "- [ ]") || strings.HasPrefix(line, "- [x]") || strings.HasPrefix(line, "- [X]") {
-			results = append(results, line)
-		}
-	}
-
-	return results, scanner.Err()
-}
-
-func applyConditions(item string, queryType QueryType, conditions []Condition) bool {
+func applyConditions(item string, queryType QueryType, conditions []ConditionNode) bool {
+	// TODO: QueryType arg is not used yet but will need to be in the future
 	if len(conditions) == 0 {
 		return true
 	}
 
-	var result bool
+	result := true
 	for i, condition := range conditions {
 		conditionMet := false
-		switch condition.Operator {
+		switch condition.Function {
 		case "CONTAINS":
 			conditionMet = strings.Contains(strings.ToLower(item), strings.ToLower(condition.Value))
-		case "NOT CONTAINS":
-			conditionMet = !strings.Contains(strings.ToLower(item), strings.ToLower(condition.Value))
-		case "=":
-			if condition.Field == "status" && queryType == TASK {
-				isChecked := strings.Contains(item, "[x]") || strings.Contains(item, "[X]")
-				conditionMet = condition.Value == "checked" && isChecked
-			}
-		case "!=":
-			if condition.Field == "status" && queryType == TASK {
-				isChecked := strings.Contains(item, "[x]") || strings.Contains(item, "[X]")
-				conditionMet = condition.Value == "checked" && !isChecked
-			}
+		case "CHECKED":
+			isChecked := strings.Contains(item, "[x]") || strings.Contains(item, "[X]")
+			conditionMet = isChecked
+		}
+
+		if condition.IsNegated {
+			conditionMet = !conditionMet
 		}
 
 		if i == 0 {
 			result = conditionMet
-		} else if condition.IsOr {
+		} else if condition.LogicalOp == "OR" {
 			result = result || conditionMet
 		} else {
 			result = result && conditionMet
@@ -430,7 +625,7 @@ func applyConditions(item string, queryType QueryType, conditions []Condition) b
 	return result
 }
 
-func filterContent(content []string, queryType QueryType, conditions []Condition) []string {
+func filterContent(content []string, queryType QueryType, conditions []ConditionNode) []string {
 	var filteredContent []string
 
 	for _, item := range content {
@@ -442,28 +637,27 @@ func filterContent(content []string, queryType QueryType, conditions []Condition
 	return filteredContent
 }
 
-func executeQueryType(query Query) (string, error) {
-	content, err := parseMarkdownFiles(query.From, query.Type)
-	if err != nil {
-		return "", err
-	}
-
-	filteredContent := filterContent(content, query.Type, query.Conditions)
-
-	// Apply LIMIT
-	if query.Limit >= 0 && query.Limit < len(filteredContent) {
-		filteredContent = filteredContent[:query.Limit]
-	}
-
-	return strings.Join(filteredContent, "\n"), nil
-}
-
 func readFromPipe() (string, error) {
 	bytes, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+func executeQuery(query string) (string, error) {
+	tokens := Lex(query)
+	ast, err := Parse(tokens)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse query: %w", err)
+	}
+
+	result, err := Interpret(ast)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	return result, nil
 }
 
 func main() {
@@ -500,178 +694,8 @@ func main() {
 	}
 
 	fmt.Println(result)
-}
-
-func parseConditions(words []string) ([]Condition, error) {
-	var conditions []Condition
-	var current Condition
-	expectingValue := false
-	notFlag := false
-	orFlag := false
-
-	for _, word := range words {
-		upperWord := strings.ToUpper(word)
-		if upperWord == "AND" {
-			continue
-		}
-		if upperWord == "OR" {
-			orFlag = true
-			continue
-		}
-		if expectingValue {
-			current.Value = strings.Trim(word, "\"")
-			current.IsOr = orFlag
-			conditions = append(conditions, current)
-			current = Condition{}
-			expectingValue = false
-			notFlag = false
-			orFlag = false
-		} else if upperWord == "NOT" {
-			notFlag = true
-		} else if upperWord == "CONTAINS" {
-			if notFlag {
-				current.Operator = "NOT CONTAINS"
-				notFlag = false
-			} else {
-				current.Operator = "CONTAINS"
-			}
-			expectingValue = true
-		} else if upperWord == "CHECKED" {
-			current.Field = "status"
-			if notFlag {
-				current.Operator = "!="
-				notFlag = false
-			} else {
-				current.Operator = "="
-			}
-			current.Value = "checked"
-			current.IsOr = orFlag
-			conditions = append(conditions, current)
-			current = Condition{}
-			orFlag = false
-		} else {
-			current.Field = word
-		}
-	}
-
-	return conditions, nil
-}
-
-func parseQuery(query string) (Query, error) {
-	words := strings.Fields(query)
-	if len(words) < 3 {
-		return Query{}, fmt.Errorf("invalid query: must have at least query type and FROM clause")
-	}
-
-	q := Query{Limit: -1} // -1 means no limit
-
-	// Parse query type
-	switch strings.ToUpper(words[0]) {
-	case "LIST":
-		q.Type = LIST
-	case "TASK":
-		q.Type = TASK
-	case "PARAGRAPH":
-		q.Type = PARAGRAPH
-	case "ORDEREDLIST":
-		q.Type = ORDEREDLIST
-	case "UNORDEREDLIST":
-		q.Type = UNORDEREDLIST
-	case "FENCEDCODE":
-		q.Type = FENCEDCODE
-	case "TABLE":
-		q.Type = TABLE
-	default:
-		return Query{}, fmt.Errorf("invalid query type: %s", words[0])
-	}
-
-	// Find the FROM, WHERE, and LIMIT clauses
-	fromIndex := -1
-	whereIndex := -1
-	limitIndex := -1
-	for i, word := range words {
-		switch strings.ToUpper(word) {
-		case "FROM":
-			fromIndex = i
-		case "WHERE":
-			whereIndex = i
-		case "LIMIT":
-			limitIndex = i
-		}
-	}
-
-	if fromIndex == -1 {
-		return Query{}, fmt.Errorf("invalid query: missing FROM clause")
-	}
-
-	// Parse sources
-	var sourceEnd int
-	if whereIndex != -1 {
-		sourceEnd = whereIndex
-	} else if limitIndex != -1 {
-		sourceEnd = limitIndex
-	} else {
-		sourceEnd = len(words)
-	}
-
-	sources := words[fromIndex+1 : sourceEnd]
-	for _, source := range sources {
-		if strings.ToUpper(source) == "AND" {
-			continue
-		}
-
-		if strings.HasSuffix(source, ",") {
-			source = source[:len(source)-1]
-			q.From = append(q.From, strings.Trim(source, "\""))
-			continue
-		}
-
-		q.From = append(q.From, strings.Trim(source, "\""))
-	}
-
-	// Parse fields (if any)
-	if fromIndex > 1 {
-		q.Fields = words[1:fromIndex]
-	}
-
-	// Parse WHERE conditions
-	if whereIndex != -1 {
-		endConditions := limitIndex
-		if endConditions == -1 {
-			endConditions = len(words)
-		}
-		conditions, err := parseConditions(words[whereIndex+1 : endConditions])
-		if err != nil {
-			return Query{}, err
-		}
-		q.Conditions = conditions
-	}
-
-	// Parse LIMIT
-	if limitIndex != -1 {
-		if limitIndex == len(words)-1 {
-			return Query{}, fmt.Errorf("invalid query: LIMIT clause requires a value")
-		}
-		limit, err := strconv.Atoi(words[limitIndex+1])
-		if err != nil {
-			return Query{}, fmt.Errorf("invalid LIMIT value: %s", words[limitIndex+1])
-		}
-		q.Limit = limit
-	}
-
-	return q, nil
-}
-
-func executeQuery(query string) (string, error) {
-	parsedQuery, err := parseQuery(query)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse query: %w", err)
-	}
-
-	result, err := executeQueryType(parsedQuery)
-	if err != nil {
-		return "", fmt.Errorf("failed to execute query: %w", err)
-	}
-
-	return result, nil
+	// TODO: Make printing buffered with this?
+	// f := bufio.NewWriter(os.Stdout)
+	// defer f.Flush()
+	// f.Write([]byte(result))
 }
