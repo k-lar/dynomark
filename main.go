@@ -552,6 +552,11 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, error) {
 	var results []string
 
 	for _, path := range paths {
+		if strings.HasPrefix(path, "~") {
+			path = filepath.Join(os.Getenv("HOME"), path[1:])
+		}
+
+		path = os.ExpandEnv(path)
 		fileInfo, err := os.Stat(path)
 		if err != nil {
 			return nil, err
