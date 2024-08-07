@@ -268,7 +268,33 @@ func InterpretTableQuery(ast *QueryNode) (string, error) {
 
 	// Collect all rows and calculate max width for each column
 	var rows [][]string
+	var paths []string
+
 	for _, path := range ast.From {
+		info, err := os.Stat(path)
+		if err != nil {
+			return "", err
+		}
+
+		if info.IsDir() {
+			err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if !info.IsDir() && strings.HasSuffix(info.Name(), ".md") {
+					paths = append(paths, p)
+				}
+				return nil
+			})
+			if err != nil {
+				return "", err
+			}
+		} else {
+			paths = append(paths, path)
+		}
+	}
+
+	for _, path := range paths {
 		_, metadata, err := parseMarkdownContent(path, ast.Type)
 		if err != nil {
 			return "", err
