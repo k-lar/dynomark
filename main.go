@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var version string = "0.1.0"
@@ -27,6 +28,8 @@ const (
 	TOKEN_NUMBER
 	TOKEN_COMMA
 	TOKEN_EOF
+	TOKEN_TABLE
+	TOKEN_TABLE_NO_ID
 )
 
 type Token struct {
@@ -46,15 +49,17 @@ const (
 	UNORDEREDLIST QueryType = "UNORDEREDLIST"
 	FENCEDCODE    QueryType = "FENCEDCODE"
 	TABLE         QueryType = "TABLE"
+	TABLE_NO_ID   QueryType = "TABLE_NO_ID"
 )
 
 type ASTNode interface{}
 
 type QueryNode struct {
-	Type  QueryType
-	From  []string
-	Where *WhereNode
-	Limit int
+	Type    QueryType
+	From    []string
+	Where   *WhereNode
+	Limit   int
+	Columns []string
 }
 
 type WhereNode struct {
@@ -85,7 +90,11 @@ func Lex(input string) []Token {
 	got_where := false
 	for _, word := range words {
 		switch strings.ToUpper(word) {
-		case "LIST", "TASK", "PARAGRAPH", "ORDEREDLIST", "UNORDEREDLIST", "FENCEDCODE", "TABLE", "LIMIT", "CHECKED":
+		case "TABLE":
+			tokens = append(tokens, Token{Type: TOKEN_TABLE, Value: "TABLE"})
+		case "TABLE_NO_ID":
+			tokens = append(tokens, Token{Type: TOKEN_TABLE_NO_ID, Value: "TABLE_NO_ID"})
+		case "LIST", "TASK", "PARAGRAPH", "ORDEREDLIST", "UNORDEREDLIST", "FENCEDCODE", "LIMIT", "CHECKED":
 			tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: strings.ToUpper(word)})
 		case "FROM":
 			tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: "FROM"})
@@ -122,12 +131,31 @@ func Parse(tokens []Token) (*QueryNode, error) {
 	query := &QueryNode{Limit: -1}
 
 	i := 0
-	if tokens[i].Type != TOKEN_KEYWORD {
-		return nil, fmt.Errorf("expected valid query type, got %s", tokens[i].Value)
+
+	if tokens[i].Type == TOKEN_TABLE {
+		query.Type = TABLE
+	} else if tokens[i].Type == TOKEN_TABLE_NO_ID {
+		query.Type = TABLE_NO_ID
+	} else {
+		if tokens[i].Type != TOKEN_KEYWORD {
+			return nil, fmt.Errorf("expected valid query type, got %s", tokens[i].Value)
+		}
+		query.Type = parseQueryType(tokens[i].Value)
 	}
 
-	query.Type = parseQueryType(tokens[i].Value)
 	i++
+
+	// Parse columns for TABLE queries
+	if query.Type == TABLE || query.Type == TABLE_NO_ID {
+		for i < len(tokens) && tokens[i].Type != TOKEN_KEYWORD {
+			if tokens[i].Type == TOKEN_IDENTIFIER {
+				query.Columns = append(query.Columns, tokens[i].Value)
+			} else if tokens[i].Type != TOKEN_COMMA {
+				return nil, fmt.Errorf("expected column name or comma, got %s", tokens[i].Value)
+			}
+			i++
+		}
+	}
 
 	// Parse FROM clause
 	if tokens[i].Value != "FROM" {
@@ -223,7 +251,84 @@ func parseWhereClause(tokens []Token) (*WhereNode, int, error) {
 	return whereNode, i, nil
 }
 
+func InterpretTableQuery(ast *QueryNode) (string, error) {
+	var result strings.Builder
+	var headers []string
+
+	if ast.Type == TABLE {
+		headers = append(headers, "File")
+	}
+	headers = append(headers, ast.Columns...)
+
+	// Initialize maxWidths with the length of headers
+	maxWidths := make([]int, len(headers))
+	for i, header := range headers {
+		maxWidths[i] = utf8.RuneCountInString(header)
+	}
+
+	// Collect all rows and calculate max width for each column
+	var rows [][]string
+	for _, path := range ast.From {
+		_, metadata, err := parseMarkdownContent(path, ast.Type)
+		if err != nil {
+			return "", err
+		}
+
+		var row []string
+		if ast.Type == TABLE {
+			row = append(row, filepath.Base(path))
+		}
+
+		for _, col := range ast.Columns {
+			if value, ok := metadata[strings.ToLower(col)]; ok {
+				row = append(row, fmt.Sprintf("%v", value))
+			} else {
+				row = append(row, "")
+			}
+		}
+
+		// Update maxWidths based on the current row
+		for i, cell := range row {
+			if utf8.RuneCountInString(cell) > maxWidths[i] {
+				maxWidths[i] = utf8.RuneCountInString(cell)
+			}
+		}
+
+		rows = append(rows, row)
+	}
+
+	// Write table headers
+	for i, header := range headers {
+		result.WriteString("| " + tablePadString(header, maxWidths[i]) + " ")
+	}
+	result.WriteString("|\n")
+
+	// Write table header separator
+	for _, width := range maxWidths {
+		result.WriteString("|" + strings.Repeat("-", width+2))
+	}
+	result.WriteString("|\n")
+
+	// Write table rows
+	for _, row := range rows {
+		for i, cell := range row {
+			result.WriteString("| " + tablePadString(cell, maxWidths[i]) + " ")
+		}
+		result.WriteString("|\n")
+	}
+
+	return result.String(), nil
+}
+
+func tablePadString(str string, length int) string {
+	return str + strings.Repeat(" ", length-utf8.RuneCountInString(str))
+}
+
 func Interpret(ast *QueryNode) (string, error) {
+	if ast.Type == TABLE || ast.Type == TABLE_NO_ID {
+		return InterpretTableQuery(ast)
+	}
+
 	content, err := parseMarkdownFiles(ast.From, ast.Type)
 	if err != nil {
 		return "", err
@@ -294,6 +399,12 @@ func parseMarkdownContent(path string, queryType QueryType) ([]string, Metadata,
 
 	// Add file-related metadata
 	addFileMetadata(path, metadata)
+
+	// For TABLE and TABLE_NO_ID, no need to parse the content
+	// Just return an empty slice for the content and the metadata
+	if queryType == TABLE || queryType == TABLE_NO_ID {
+		return []string{}, metadata, nil
+	}
 
 	// Strip YAML frontmatter from lines
 	lines = stripYAMLFrontmatter(lines)
