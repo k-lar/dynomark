@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+var version string = "0.1.0"
+
 type TokenType int
 
 const (
@@ -699,9 +701,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(result)
-	// TODO: Make printing buffered with this?
-	// f := bufio.NewWriter(os.Stdout)
-	// defer f.Flush()
-	// f.Write([]byte(result))
+	w := bufio.NewWriter(os.Stdout)
+	_, err = w.WriteString(result + "\n")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing result: %v\n", err)
+		os.Exit(1)
+	}
+	err = w.Flush()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error flushing output: %v\n", err)
+		os.Exit(1)
+	}
 }
