@@ -146,7 +146,7 @@ func Parse(tokens []Token) (*QueryNode, error) {
 	if i < len(tokens) && tokens[i].Value == "WHERE" {
 		whereNode, newIndex, err := parseWhereClause(tokens[i+1:])
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error parsing WHERE clause: %w", err)
 		}
 		query.Where = whereNode
 		i += newIndex + 1
@@ -157,7 +157,10 @@ func Parse(tokens []Token) (*QueryNode, error) {
 		if i+1 >= len(tokens) || tokens[i+1].Type != TOKEN_NUMBER {
 			return nil, fmt.Errorf("invalid LIMIT clause")
 		}
-		limit, _ := strconv.Atoi(tokens[i+1].Value)
+		limit, err := strconv.Atoi(tokens[i+1].Value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid LIMIT value: %w", err)
+		}
 		query.Limit = limit
 	}
 
