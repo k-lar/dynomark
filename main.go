@@ -94,39 +94,59 @@ func Lex(input string) []Token {
 
 	got_from := false
 	got_where := false
+	insideQuotes := false
+	var quotedString string
+
 	for _, word := range words {
-		switch strings.ToUpper(word) {
-		case "TABLE":
-			tokens = append(tokens, Token{Type: TOKEN_TABLE, Value: "TABLE"})
-		case "TABLE_NO_ID":
-			tokens = append(tokens, Token{Type: TOKEN_TABLE_NO_ID, Value: "TABLE_NO_ID"})
-		case "AS":
-			tokens = append(tokens, Token{Type: TOKEN_AS, Value: "AS"})
-		case "LIST", "TASK", "PARAGRAPH", "ORDEREDLIST", "UNORDEREDLIST", "FENCEDCODE", "LIMIT", "CHECKED":
-			tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: strings.ToUpper(word)})
-		case "FROM":
-			tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: "FROM"})
-			got_from = true
-		case "WHERE":
-			tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: "WHERE"})
-			got_where = true
-		case ",":
-			tokens = append(tokens, Token{Type: TOKEN_COMMA, Value: word})
-		case "CONTAINS":
-			tokens = append(tokens, Token{Type: TOKEN_FUNCTION, Value: "CONTAINS"})
-		case "NOT":
-			tokens = append(tokens, Token{Type: TOKEN_NOT, Value: "NOT"})
-		case "AND", "OR":
-			tokens = append(tokens, Token{Type: TOKEN_LOGICAL_OP, Value: strings.ToUpper(word)})
-		default:
-			if strings.HasPrefix(word, "\"") && strings.HasSuffix(word, "\"") {
-				tokens = append(tokens, Token{Type: TOKEN_STRING, Value: word[1 : len(word)-1]})
-			} else if _, err := strconv.Atoi(word); err == nil {
-				tokens = append(tokens, Token{Type: TOKEN_NUMBER, Value: word})
-			} else if got_from && !got_where {
-				tokens = append(tokens, Token{Type: TOKEN_STRING, Value: word})
+		// Handle quoted strings (even if they contain spaces)
+		if strings.HasPrefix(word, "\"") && !insideQuotes {
+			insideQuotes = true
+			quotedString = word[1:]
+			if strings.HasSuffix(word, "\"") && len(word) > 1 {
+				insideQuotes = false
+				quotedString = word[1 : len(word)-1]
+				tokens = append(tokens, Token{Type: TOKEN_STRING, Value: quotedString})
+			}
+		} else if insideQuotes {
+			if strings.HasSuffix(word, "\"") {
+				insideQuotes = false
+				quotedString += " " + word[:len(word)-1]
+				tokens = append(tokens, Token{Type: TOKEN_STRING, Value: quotedString})
 			} else {
-				tokens = append(tokens, Token{Type: TOKEN_IDENTIFIER, Value: word})
+				quotedString += " " + word
+			}
+		} else {
+			switch strings.ToUpper(word) {
+			case "TABLE":
+				tokens = append(tokens, Token{Type: TOKEN_TABLE, Value: "TABLE"})
+			case "TABLE_NO_ID":
+				tokens = append(tokens, Token{Type: TOKEN_TABLE_NO_ID, Value: "TABLE_NO_ID"})
+			case "AS":
+				tokens = append(tokens, Token{Type: TOKEN_AS, Value: "AS"})
+			case "LIST", "TASK", "PARAGRAPH", "ORDEREDLIST", "UNORDEREDLIST", "FENCEDCODE", "LIMIT", "CHECKED":
+				tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: strings.ToUpper(word)})
+			case "FROM":
+				tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: "FROM"})
+				got_from = true
+			case "WHERE":
+				tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: "WHERE"})
+				got_where = true
+			case ",":
+				tokens = append(tokens, Token{Type: TOKEN_COMMA, Value: word})
+			case "CONTAINS":
+				tokens = append(tokens, Token{Type: TOKEN_FUNCTION, Value: "CONTAINS"})
+			case "NOT":
+				tokens = append(tokens, Token{Type: TOKEN_NOT, Value: "NOT"})
+			case "AND", "OR":
+				tokens = append(tokens, Token{Type: TOKEN_LOGICAL_OP, Value: strings.ToUpper(word)})
+			default:
+				if _, err := strconv.Atoi(word); err == nil {
+					tokens = append(tokens, Token{Type: TOKEN_NUMBER, Value: word})
+				} else if got_from && !got_where {
+					tokens = append(tokens, Token{Type: TOKEN_STRING, Value: word})
+				} else {
+					tokens = append(tokens, Token{Type: TOKEN_IDENTIFIER, Value: word})
+				}
 			}
 		}
 	}
