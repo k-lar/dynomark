@@ -30,6 +30,7 @@ const (
 	TOKEN_EOF
 	TOKEN_TABLE
 	TOKEN_TABLE_NO_ID
+	TOKEN_AS
 )
 
 type Token struct {
@@ -54,12 +55,17 @@ const (
 
 type ASTNode interface{}
 
+type ColumnDefinition struct {
+	Name  string
+	Alias string
+}
+
 type QueryNode struct {
 	Type    QueryType
 	From    []string
 	Where   *WhereNode
 	Limit   int
-	Columns []string
+	Columns []ColumnDefinition
 }
 
 type WhereNode struct {
@@ -94,6 +100,8 @@ func Lex(input string) []Token {
 			tokens = append(tokens, Token{Type: TOKEN_TABLE, Value: "TABLE"})
 		case "TABLE_NO_ID":
 			tokens = append(tokens, Token{Type: TOKEN_TABLE_NO_ID, Value: "TABLE_NO_ID"})
+		case "AS":
+			tokens = append(tokens, Token{Type: TOKEN_AS, Value: "AS"})
 		case "LIST", "TASK", "PARAGRAPH", "ORDEREDLIST", "UNORDEREDLIST", "FENCEDCODE", "LIMIT", "CHECKED":
 			tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: strings.ToUpper(word)})
 		case "FROM":
@@ -149,11 +157,29 @@ func Parse(tokens []Token) (*QueryNode, error) {
 	if query.Type == TABLE || query.Type == TABLE_NO_ID {
 		for i < len(tokens) && tokens[i].Type != TOKEN_KEYWORD {
 			if tokens[i].Type == TOKEN_IDENTIFIER {
-				query.Columns = append(query.Columns, tokens[i].Value)
-			} else if tokens[i].Type != TOKEN_COMMA {
+				columnName := tokens[i].Value
+				i++
+				if i < len(tokens) && tokens[i].Type == TOKEN_AS {
+					i++
+					if i >= len(tokens) || tokens[i].Type != TOKEN_STRING {
+						return nil, fmt.Errorf("expected column alias, got %s", tokens[i].Value)
+					}
+					query.Columns = append(query.Columns, ColumnDefinition{
+						Name:  columnName,
+						Alias: tokens[i].Value,
+					})
+					i++
+				} else {
+					query.Columns = append(query.Columns, ColumnDefinition{
+						Name:  columnName,
+						Alias: columnName,
+					})
+				}
+			} else if tokens[i].Type == TOKEN_COMMA {
+				i++
+			} else {
 				return nil, fmt.Errorf("expected column name or comma, got %s", tokens[i].Value)
 			}
-			i++
 		}
 	}
 
@@ -258,7 +284,10 @@ func InterpretTableQuery(ast *QueryNode) (string, error) {
 	if ast.Type == TABLE {
 		headers = append(headers, "File")
 	}
-	headers = append(headers, ast.Columns...)
+	// headers = append(headers, ast.Columns...)
+	for _, col := range ast.Columns {
+		headers = append(headers, col.Alias)
+	}
 
 	// Initialize maxWidths with the length of headers
 	maxWidths := make([]int, len(headers))
@@ -305,8 +334,9 @@ func InterpretTableQuery(ast *QueryNode) (string, error) {
 			row = append(row, filepath.Base(path))
 		}
 
-		for _, col := range ast.Columns {
-			if value, ok := metadata[strings.ToLower(col)]; ok {
+		for _, colDef := range ast.Columns {
+			colName := colDef.Name
+			if value, ok := metadata[colName]; ok {
 				row = append(row, fmt.Sprintf("%v", value))
 			} else {
 				row = append(row, "")
