@@ -46,7 +46,7 @@ sudo make uninstall
     - [X] Metadata parsing
     - [X] Query multiple files/directories at once
     - [X] TABLE support
-        - [ ] TABLE_NO_ID support
+        - [X] TABLE_NO_ID support (A TABLE query without ID/File column)
         - [ ] Support AS statements (e.g. TABLE author AS "Author", published AS "Date published" FROM ...)
         - [ ] Support tag based conditionals (e.g. TABLE author, published FROM example.md WHERE author IS "Shakespeare")
 - [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
