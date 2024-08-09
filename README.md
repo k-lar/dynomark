@@ -50,6 +50,8 @@ sudo make uninstall
         - [X] Support AS statements (e.g. TABLE author AS "Author", published AS "Date published" FROM ...)
         - [ ] Support tag based conditionals (e.g. TABLE author, published FROM example.md WHERE author IS "Shakespeare")
 - [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
+- [ ] Emacs plugin
+- [ ] Visual Studio Code plugin
 - [ ] Query syntax doc
 
 ## Examples
