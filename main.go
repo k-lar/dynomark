@@ -505,7 +505,12 @@ func parseMarkdownContent(path string, queryType QueryType) ([]string, Metadata,
 }
 
 func parseMetadataLine(line string, metadata Metadata) {
-	if strings.HasPrefix(line, "**") && strings.Contains(line, "::") {
+	// Check for metadata in the form of key:: value
+	// TODO: Parse the string yourself without regex
+	if matched, _ := regexp.MatchString(`^\w+ *::`, line); matched {
+		line = strings.Trim(line, " ")
+		parseMetadataPair(line, metadata)
+	} else if strings.HasPrefix(line, "**") && strings.Contains(line, "::") {
 		line = strings.Trim(line, "* ")
 		parseMetadataPair(line, metadata)
 	} else if strings.HasPrefix(line, "[") && strings.Contains(line, "::") {
@@ -861,11 +866,18 @@ func executeQuery(query string) (string, error) {
 func main() {
 	var query string
 	var err error
+	versionFlag := flag.Bool("v", false, "print the version number")
+	longVersionFlag := flag.Bool("version", false, "print the version number")
 
 	flag.StringVar(&query, "query", "", "The query string to be processe")
 	flag.StringVar(&query, "q", "", "The query string to be processed (shorthand)")
 
 	flag.Parse()
+
+	if *versionFlag || *longVersionFlag {
+		fmt.Println("Version:", version)
+		os.Exit(0)
+	}
 
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
