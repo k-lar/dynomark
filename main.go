@@ -31,6 +31,7 @@ const (
 	TOKEN_TABLE
 	TOKEN_TABLE_NO_ID
 	TOKEN_AS
+	TOKEN_METADATA
 )
 
 type Token struct {
@@ -73,10 +74,12 @@ type WhereNode struct {
 }
 
 type ConditionNode struct {
-	IsNegated bool
-	Function  string
-	Value     string
-	LogicalOp string // "AND" or "OR"
+	IsNegated  bool
+	IsMetadata bool
+	Field      string // Metadata field
+	Function   string
+	Value      string
+	LogicalOp  string // "AND" or "OR"
 }
 
 func Lex(input string) []Token {
@@ -98,8 +101,11 @@ func Lex(input string) []Token {
 	var quotedString string
 
 	for _, word := range words {
-		// Handle quoted strings (even if they contain spaces)
-		if strings.HasPrefix(word, "\"") && !insideQuotes {
+		// Handle metadata (e.g. [author])
+		if strings.HasPrefix(word, "[") && strings.HasSuffix(word, "]") {
+			tokens = append(tokens, Token{Type: TOKEN_METADATA, Value: strings.Trim(word, "[]")})
+			// Handle quoted strings (even if they contain spaces)
+		} else if strings.HasPrefix(word, "\"") && !insideQuotes {
 			insideQuotes = true
 			quotedString = word[1:]
 			if strings.HasSuffix(word, "\"") && len(word) > 1 {
@@ -270,6 +276,9 @@ func parseWhereClause(tokens []Token) (*WhereNode, int, error) {
 
 	for i < len(tokens) && tokens[i].Value != "LIMIT" {
 		switch tokens[i].Type {
+		case TOKEN_METADATA:
+			currentCondition.IsMetadata = true
+			currentCondition.Field = tokens[i].Value
 		case TOKEN_NOT:
 			currentCondition.IsNegated = true
 		case TOKEN_FUNCTION:
@@ -405,13 +414,13 @@ func Interpret(ast *QueryNode) (string, error) {
 		return InterpretTableQuery(ast)
 	}
 
-	content, err := parseMarkdownFiles(ast.From, ast.Type)
+	content, metadataList, err := parseMarkdownFiles(ast.From, ast.Type)
 	if err != nil {
 		return "", err
 	}
 
 	if ast.Where != nil {
-		content = filterContent(content, ast.Type, ast.Where.Conditions)
+		content = filterContent(content, metadataList, ast.Where.Conditions)
 	}
 
 	if ast.Limit >= 0 && ast.Limit < len(content) {
@@ -745,8 +754,9 @@ func parseFencedCode(lines []string) []string {
 	return fencedCode
 }
 
-func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, error) {
+func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, []Metadata, error) {
 	var results []string
+	var metadataList []Metadata
 
 	for _, path := range paths {
 		if strings.HasPrefix(path, "~") {
@@ -756,47 +766,52 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, error) {
 		path = os.ExpandEnv(path)
 		fileInfo, err := os.Stat(path)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if fileInfo.IsDir() {
 			files, err := filepath.Glob(filepath.Join(path, "*.md"))
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if queryType == LIST {
 				for _, file := range files {
 					results = append(results, "- "+filepath.Base(file))
+					metadataList = append(metadataList, Metadata{}) // Empty metadata for LIST queries
 				}
 			} else {
 				for _, file := range files {
-					// INFO: This also returns metadata
-					content, _, err := parseMarkdownContent(file, queryType)
+					content, metadata, err := parseMarkdownContent(file, queryType)
 					if err != nil {
-						return nil, err
+						return nil, nil, err
 					}
 					results = append(results, content...)
+					for range content {
+						metadataList = append(metadataList, metadata)
+					}
 				}
 			}
 		} else {
 			if queryType == LIST {
 				results = append(results, filepath.Base(path))
+				metadataList = append(metadataList, Metadata{}) // Empty metadata for LIST queries
 			} else {
-				// INFO: This also returns metadata
-				content, _, err := parseMarkdownContent(path, queryType)
+				content, metadata, err := parseMarkdownContent(path, queryType)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 				results = append(results, content...)
+				for range content {
+					metadataList = append(metadataList, metadata)
+				}
 			}
 		}
 	}
 
-	return results, nil
+	return results, metadataList, nil
 }
 
-func applyConditions(item string, queryType QueryType, conditions []ConditionNode) bool {
-	// TODO: QueryType arg is not used yet but will need to be in the future
+func applyConditions(item string, metadata Metadata, conditions []ConditionNode) bool {
 	if len(conditions) == 0 {
 		return true
 	}
@@ -804,11 +819,21 @@ func applyConditions(item string, queryType QueryType, conditions []ConditionNod
 	result := true
 	for i, condition := range conditions {
 		conditionMet := false
+		var fieldValue string
+
+		if condition.IsMetadata {
+			if value, ok := metadata[condition.Field]; ok {
+				fieldValue = fmt.Sprintf("%v", value)
+			}
+		} else {
+			fieldValue = item
+		}
+
 		switch condition.Function {
 		case "CONTAINS":
-			conditionMet = strings.Contains(strings.ToLower(item), strings.ToLower(condition.Value))
+			conditionMet = strings.Contains(strings.ToLower(fieldValue), strings.ToLower(condition.Value))
 		case "CHECKED":
-			isChecked := strings.Contains(item, "[x]") || strings.Contains(item, "[X]")
+			isChecked := strings.Contains(fieldValue, "[x]") || strings.Contains(fieldValue, "[X]")
 			conditionMet = isChecked
 		}
 
@@ -828,11 +853,11 @@ func applyConditions(item string, queryType QueryType, conditions []ConditionNod
 	return result
 }
 
-func filterContent(content []string, queryType QueryType, conditions []ConditionNode) []string {
+func filterContent(content []string, metadata []Metadata, conditions []ConditionNode) []string {
 	var filteredContent []string
 
-	for _, item := range content {
-		if applyConditions(item, queryType, conditions) {
+	for i, item := range content {
+		if applyConditions(item, metadata[i], conditions) {
 			filteredContent = append(filteredContent, item)
 		}
 	}
