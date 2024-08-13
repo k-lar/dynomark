@@ -141,6 +141,8 @@ func Lex(input string) []Token {
 				tokens = append(tokens, Token{Type: TOKEN_COMMA, Value: word})
 			case "CONTAINS":
 				tokens = append(tokens, Token{Type: TOKEN_FUNCTION, Value: "CONTAINS"})
+			case "IS":
+				tokens = append(tokens, Token{Type: TOKEN_FUNCTION, Value: "IS"})
 			case "NOT":
 				tokens = append(tokens, Token{Type: TOKEN_NOT, Value: "NOT"})
 			case "AND", "OR":
@@ -832,6 +834,8 @@ func applyConditions(item string, metadata Metadata, conditions []ConditionNode)
 		switch condition.Function {
 		case "CONTAINS":
 			conditionMet = strings.Contains(strings.ToLower(fieldValue), strings.ToLower(condition.Value))
+		case "IS":
+			conditionMet = fieldValue == condition.Value
 		case "CHECKED":
 			isChecked := strings.Contains(fieldValue, "[x]") || strings.Contains(fieldValue, "[X]")
 			conditionMet = isChecked
