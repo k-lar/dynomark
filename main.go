@@ -565,7 +565,7 @@ func addFileMetadata(path string, metadata Metadata) {
 	if err == nil {
 		metadata["file.folder"] = filepath.Dir(path)
 		metadata["file.path"] = path
-		metadata["file.link"] = fmt.Sprintf("[%s](%s)", filepath.Base(path), filepath.Base(filepath.Dir(path)))
+		metadata["file.link"] = fmt.Sprintf("[%s](%s)", filepath.Base(path), path)
 		metadata["file.size"] = fileInfo.Size()
 		metadata["file.ctime"] = fileInfo.ModTime().Format(time.RFC3339)
 		metadata["file.cday"] = fileInfo.ModTime().Format("2006-01-02")
