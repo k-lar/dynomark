@@ -360,6 +360,13 @@ func InterpretTableQuery(ast *QueryNode) (string, error) {
 			return "", err
 		}
 
+		// Apply WHERE conditions to filter rows
+		if ast.Where != nil {
+			if !applyConditions("", metadata, ast.Where.Conditions) {
+				continue
+			}
+		}
+
 		var row []string
 		if ast.Type == TABLE {
 			row = append(row, filepath.Base(path))
