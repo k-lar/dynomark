@@ -140,7 +140,7 @@ Result:
 ```
 
 List of tasks in all .md files inside `examples/` directory, grouped by file path:  
-Query: `task from todos/ where not checked group by [file.path]`
+Query: `TASK FROM todos/ WHERE NOT CHECKED GROUP BY [file.path]`
 
 Result:
 
