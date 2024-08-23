@@ -119,7 +119,7 @@ Result:
 ```
 
 Paragraphs from the `examples/movie_reviews.md` and `examples/tasks.md` files:  
-Query: `paragraph from examples/movie_reviews.md, examples/tasks.md`
+Query: `PARAGRAPH FROM examples/movie_reviews.md, examples/tasks.md`
 
 Result:
 
