@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +33,8 @@ const (
 	TOKEN_TABLE_NO_ID
 	TOKEN_AS
 	TOKEN_METADATA
+	TOKEN_GROUP
+	TOKEN_BY
 )
 
 type Token struct {
@@ -65,6 +68,7 @@ type QueryNode struct {
 	Type    QueryType
 	From    []string
 	Where   *WhereNode
+	GroupBy string
 	Limit   int
 	Columns []ColumnDefinition
 }
@@ -137,6 +141,10 @@ func Lex(input string) []Token {
 			case "WHERE":
 				tokens = append(tokens, Token{Type: TOKEN_KEYWORD, Value: "WHERE"})
 				got_where = true
+			case "GROUP":
+				tokens = append(tokens, Token{Type: TOKEN_GROUP, Value: "GROUP"})
+			case "BY":
+				tokens = append(tokens, Token{Type: TOKEN_BY, Value: "BY"})
 			case ",":
 				tokens = append(tokens, Token{Type: TOKEN_COMMA, Value: word})
 			case "CONTAINS":
@@ -218,7 +226,9 @@ func Parse(tokens []Token) (*QueryNode, error) {
 	i++
 
 	for i < len(tokens) && tokens[i].Type != TOKEN_KEYWORD {
-		if tokens[i].Type == TOKEN_STRING {
+		if tokens[i].Type == TOKEN_GROUP {
+			break
+		} else if tokens[i].Type == TOKEN_STRING {
 			query.From = append(query.From, tokens[i].Value)
 		}
 		i++
@@ -232,6 +242,22 @@ func Parse(tokens []Token) (*QueryNode, error) {
 		}
 		query.Where = whereNode
 		i += newIndex + 1
+	}
+
+	// Parse GROUP BY clause
+	if i < len(tokens) && tokens[i].Type == TOKEN_GROUP {
+		i++
+		if i < len(tokens) && tokens[i].Type == TOKEN_BY {
+			i++
+			if i < len(tokens) && tokens[i].Type == TOKEN_METADATA {
+				query.GroupBy = tokens[i].Value
+				i++
+			} else {
+				return nil, fmt.Errorf("expected metadata field after GROUP BY, got %s", tokens[i].Value)
+			}
+		} else {
+			return nil, fmt.Errorf("expected BY after GROUP, got %s", tokens[i].Value)
+		}
 	}
 
 	// Parse LIMIT clause
@@ -275,9 +301,13 @@ func parseWhereClause(tokens []Token) (*WhereNode, int, error) {
 	i := 0
 	var currentCondition ConditionNode
 	var logicalOp string
+	var gotGroup bool
 
 	for i < len(tokens) && tokens[i].Value != "LIMIT" {
 		switch tokens[i].Type {
+		case TOKEN_GROUP:
+			gotGroup = true
+			break
 		case TOKEN_METADATA:
 			currentCondition.IsMetadata = true
 			currentCondition.Field = tokens[i].Value
@@ -301,6 +331,9 @@ func parseWhereClause(tokens []Token) (*WhereNode, int, error) {
 				currentCondition = ConditionNode{}
 				logicalOp = ""
 			}
+		}
+		if gotGroup {
+			break
 		}
 		i++
 	}
@@ -429,7 +462,11 @@ func Interpret(ast *QueryNode) (string, error) {
 	}
 
 	if ast.Where != nil {
-		content = filterContent(content, metadataList, ast.Where.Conditions)
+		content, metadataList = filterContent(content, metadataList, ast.Where.Conditions)
+	}
+
+	if ast.GroupBy != "" {
+		return groupContent(content, metadataList, ast.GroupBy, ast.Type)
 	}
 
 	if ast.Limit >= 0 && ast.Limit < len(content) {
@@ -437,6 +474,41 @@ func Interpret(ast *QueryNode) (string, error) {
 	}
 
 	return strings.Join(content, "\n"), nil
+}
+
+func groupContent(content []string, metadataList []Metadata, groupBy string, queryType QueryType) (string, error) {
+	groups := make(map[string][]string)
+
+	for i, item := range content {
+		groupValue, ok := metadataList[i][groupBy]
+		if !ok {
+			groupValue = "Unknown"
+		}
+		groupKey := fmt.Sprintf("%v", groupValue)
+		groups[groupKey] = append(groups[groupKey], item)
+	}
+
+	var result strings.Builder
+	keys := make([]string, 0, len(groups))
+	for k := range groups {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		result.WriteString(fmt.Sprintf("- %s\n", key))
+		for _, item := range groups[key] {
+			switch queryType {
+			case TASK, UNORDEREDLIST, ORDEREDLIST:
+				result.WriteString(fmt.Sprintf("    %s\n", item))
+			case PARAGRAPH, FENCEDCODE:
+				result.WriteString(fmt.Sprintf("    %s\n\n", item))
+			}
+		}
+		result.WriteString("\n")
+	}
+
+	return result.String(), nil
 }
 
 func parseMarkdownContent(path string, queryType QueryType) ([]string, Metadata, error) {
@@ -864,16 +936,18 @@ func applyConditions(item string, metadata Metadata, conditions []ConditionNode)
 	return result
 }
 
-func filterContent(content []string, metadata []Metadata, conditions []ConditionNode) []string {
+func filterContent(content []string, metadata []Metadata, conditions []ConditionNode) ([]string, []Metadata) {
 	var filteredContent []string
+	var filteredMetadata []Metadata
 
 	for i, item := range content {
 		if applyConditions(item, metadata[i], conditions) {
 			filteredContent = append(filteredContent, item)
+			filteredMetadata = append(filteredMetadata, metadata[i])
 		}
 	}
 
-	return filteredContent
+	return filteredContent, filteredMetadata
 }
 
 func readFromPipe() (string, error) {
