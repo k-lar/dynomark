@@ -309,7 +309,7 @@ That would return a table like this:
 | 2024-08-21   | Title 5 |
 ```
 
-And an example with metadata conditionals:
+And an example with metadata conditionals:  
 `TABLE_NO_ID file.cday AS "Date created", title AS "Title" FROM todos/ WHERE [title] IS "Title 2"`
 
 That would return a table like this:
