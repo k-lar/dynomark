@@ -43,6 +43,7 @@ sudo make uninstall
     - [ ] ORDER BY
         - [ ] ASCENDING
         - [ ] DESCENDING
+    - [X] GROUP BY (metadata)
     - [X] Metadata parsing
     - [X] Query multiple files/directories at once
     - [X] Support metadata/tag based conditionals (e.g. TABLE author, published FROM example.md WHERE [author] IS "Shakespeare")
