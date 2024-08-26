@@ -44,6 +44,8 @@ sudo make uninstall
         - [ ] ASCENDING
         - [ ] DESCENDING
     - [X] GROUP BY (metadata)
+        - [X] Limit max number of groups
+        - [X] Limit the results under each group
     - [X] Metadata parsing
     - [X] Query multiple files/directories at once
     - [X] Support metadata/tag based conditionals (e.g. TABLE author, published FROM example.md WHERE [author] IS "Shakespeare")
@@ -139,22 +141,40 @@ Result:
 - [ ] Write unit tests
 ```
 
-List of tasks in all .md files inside `examples/` directory, grouped by file path:  
+List of unchecked tasks in all .md files inside `examples/` directory, grouped by file path:  
 Query: `TASK FROM todos/ WHERE NOT CHECKED GROUP BY [file.path]`
 
 Result:
 
 ```
-- todos/todo-1.md                                                  
-    - [ ] Task 1                                                   
-    - [ ] Task 3                                                   
-                                                                   
-- todos/todo-2.md                                                  
-    - [ ] Item 1                                                   
-                                                                   
-- todos/todo-3.md                                                  
-    - [ ] Other task 1                                             
-    - [ ] Other task 2 
+- todos/todo-1.md
+    - [ ] Task 1
+    - [ ] Task 3
+
+- todos/todo-2.md
+    - [ ] Item 1
+
+- todos/todo-3.md
+    - [ ] Other task 1
+    - [ ] Other task 2
+```
+
+List of tasks in all .md files inside `todos/` directory, grouped by file path (max 2 groups with
+max 3 results under each group):  
+Query: `TASK FROM todos/ GROUP BY 2 [file.path] LIMIT 3`
+
+Result:
+
+```
+- todos/todo-1.md
+    - [ ] Task 1
+    - [X] Task 2
+    - [ ] Task 3
+
+- todos/todo-2.md
+    - [ ] Item 1
+    - [X] Item 2
+    - [X] Item 3
 ```
 
 All unordered lists in `examples/test.md`:  
