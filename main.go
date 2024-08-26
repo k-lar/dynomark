@@ -504,7 +504,10 @@ func groupContent(content []string, metadataList []Metadata, ast *QueryNode) (st
 	for k := range groups {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+
+	sort.Slice(keys, func(i, j int) bool {
+		return NaturalSort(keys[i], keys[j])
+	})
 
 	if ast.GroupLimit > 0 && len(keys) > ast.GroupLimit {
 		keys = keys[:ast.GroupLimit]
