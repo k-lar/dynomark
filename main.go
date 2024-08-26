@@ -245,22 +245,6 @@ func Parse(tokens []Token) (*QueryNode, error) {
 		i += newIndex + 1
 	}
 
-	// Parse GROUP BY clause
-	// if i < len(tokens) && tokens[i].Type == TOKEN_GROUP {
-	// 	i++
-	// 	if i < len(tokens) && tokens[i].Type == TOKEN_BY {
-	// 		i++
-	// 		if i < len(tokens) && tokens[i].Type == TOKEN_METADATA {
-	// 			query.GroupBy = tokens[i].Value
-	// 			i++
-	// 		} else {
-	// 			return nil, fmt.Errorf("expected metadata field after GROUP BY, got %s", tokens[i].Value)
-	// 		}
-	// 	} else {
-	// 		return nil, fmt.Errorf("expected BY after GROUP, got %s", tokens[i].Value)
-	// 	}
-	// }
-
 	if i < len(tokens) && tokens[i].Type == TOKEN_GROUP {
 		i++
 		if i < len(tokens) && tokens[i].Type == TOKEN_BY {
@@ -675,6 +659,8 @@ func addFileMetadata(path string, metadata Metadata) {
 	if err == nil {
 		metadata["file.folder"] = filepath.Dir(path)
 		metadata["file.path"] = path
+		metadata["file.name"] = filepath.Base(path)
+		metadata["file.shortname"] = filepath.Base(path)[:len(filepath.Base(path))-3]
 		metadata["file.link"] = fmt.Sprintf("[%s](%s)", filepath.Base(path), path)
 		metadata["file.size"] = fileInfo.Size()
 		metadata["file.ctime"] = fileInfo.ModTime().Format(time.RFC3339)

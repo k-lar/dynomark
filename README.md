@@ -159,19 +159,19 @@ Result:
     - [ ] Other task 2
 ```
 
-List of tasks in all .md files inside `todos/` directory, grouped by file path (max 2 groups with
+List of tasks in all .md files inside `todos/` directory, grouped by file name (max 2 groups with
 max 3 results under each group):  
 Query: `TASK FROM todos/ GROUP BY 2 [file.path] LIMIT 3`
 
 Result:
 
 ```
-- todos/todo-1.md
+- todo-1.md
     - [ ] Task 1
     - [X] Task 2
     - [ ] Task 3
 
-- todos/todo-2.md
+- todo-2.md
     - [ ] Item 1
     - [X] Item 2
     - [X] Item 3
@@ -271,8 +271,10 @@ To reference metadata in your queries, you have to use the following syntax:
 The only place where that syntax is not required is in the `TABLE` query,
 where you can use the metadata key directly as shown in the examples below.
 
-There are 8 metadata fields that are defined by default for every file it processes:
-- `file.path`: The path of the file
+There are 10 metadata fields that are defined by default for every file it processes:
+- `file.path`: The relative path to the file
+- `file.name`: The name of the file, including the file extension
+- `file.shortname`: The name of the file without the file extension
 - `file.folder`: The folder of the file where it's located
 - `file.link`: The markdown link to the file (relative to your current working directory)
 - `file.size`: The size of the file in bytes
