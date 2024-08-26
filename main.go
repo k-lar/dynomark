@@ -65,12 +65,13 @@ type ColumnDefinition struct {
 }
 
 type QueryNode struct {
-	Type    QueryType
-	From    []string
-	Where   *WhereNode
-	GroupBy string
-	Limit   int
-	Columns []ColumnDefinition
+	Type       QueryType
+	From       []string
+	Where      *WhereNode
+	GroupBy    string
+	GroupLimit int
+	Limit      int
+	Columns    []ColumnDefinition
 }
 
 type WhereNode struct {
@@ -245,10 +246,32 @@ func Parse(tokens []Token) (*QueryNode, error) {
 	}
 
 	// Parse GROUP BY clause
+	// if i < len(tokens) && tokens[i].Type == TOKEN_GROUP {
+	// 	i++
+	// 	if i < len(tokens) && tokens[i].Type == TOKEN_BY {
+	// 		i++
+	// 		if i < len(tokens) && tokens[i].Type == TOKEN_METADATA {
+	// 			query.GroupBy = tokens[i].Value
+	// 			i++
+	// 		} else {
+	// 			return nil, fmt.Errorf("expected metadata field after GROUP BY, got %s", tokens[i].Value)
+	// 		}
+	// 	} else {
+	// 		return nil, fmt.Errorf("expected BY after GROUP, got %s", tokens[i].Value)
+	// 	}
+	// }
+
 	if i < len(tokens) && tokens[i].Type == TOKEN_GROUP {
 		i++
 		if i < len(tokens) && tokens[i].Type == TOKEN_BY {
 			i++
+			if i < len(tokens) && tokens[i].Type == TOKEN_NUMBER {
+				query.GroupLimit, _ = strconv.Atoi(tokens[i].Value)
+				i++
+				if i < len(tokens) && tokens[i].Type != TOKEN_METADATA {
+					return nil, fmt.Errorf("expected metadata field after GROUP BY %s, got %s", tokens[i-1].Value, tokens[i].Value)
+				}
+			}
 			if i < len(tokens) && tokens[i].Type == TOKEN_METADATA {
 				query.GroupBy = tokens[i].Value
 				i++
@@ -466,7 +489,8 @@ func Interpret(ast *QueryNode) (string, error) {
 	}
 
 	if ast.GroupBy != "" {
-		return groupContent(content, metadataList, ast.GroupBy, ast.Type)
+		// This handles LIMIT too, that's why I can just return it
+		return groupContent(content, metadataList, ast)
 	}
 
 	if ast.Limit >= 0 && ast.Limit < len(content) {
@@ -476,15 +500,18 @@ func Interpret(ast *QueryNode) (string, error) {
 	return strings.Join(content, "\n"), nil
 }
 
-func groupContent(content []string, metadataList []Metadata, groupBy string, queryType QueryType) (string, error) {
+func groupContent(content []string, metadataList []Metadata, ast *QueryNode) (string, error) {
 	groups := make(map[string][]string)
 
 	for i, item := range content {
-		groupValue, ok := metadataList[i][groupBy]
+		groupValue, ok := metadataList[i][ast.GroupBy]
 		if !ok {
 			groupValue = "Unknown"
 		}
 		groupKey := fmt.Sprintf("%v", groupValue)
+		if ast.Limit > 0 && len(groups[groupKey]) >= ast.Limit {
+			continue
+		}
 		groups[groupKey] = append(groups[groupKey], item)
 	}
 
@@ -495,10 +522,14 @@ func groupContent(content []string, metadataList []Metadata, groupBy string, que
 	}
 	sort.Strings(keys)
 
+	if ast.GroupLimit > 0 && len(keys) > ast.GroupLimit {
+		keys = keys[:ast.GroupLimit]
+	}
+
 	for _, key := range keys {
 		result.WriteString(fmt.Sprintf("- %s\n", key))
 		for _, item := range groups[key] {
-			switch queryType {
+			switch ast.Type {
 			case TASK, UNORDEREDLIST, ORDEREDLIST:
 				result.WriteString(fmt.Sprintf("    %s\n", item))
 			case PARAGRAPH, FENCEDCODE:
