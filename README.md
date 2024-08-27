@@ -50,7 +50,7 @@ sudo make uninstall
     - [X] Query multiple files/directories at once
     - [X] Support metadata/tag based conditionals (e.g. TABLE author, published FROM example.md WHERE [author] IS "Shakespeare")
     - [X] TABLE support
-        - [X] TABLE_NO_ID support (A TABLE query without ID/File column)
+        - [X] TABLE NO ID support (A TABLE query without ID/File column)
         - [X] Support AS statements (e.g. TABLE author AS "Author", published AS "Date published" FROM ...)
 - [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
 - [ ] Emacs plugin
@@ -317,8 +317,8 @@ That would return a table like this:
 | todo-5.md | 2024-08-21   | Title 5 |
 ```
 
-You can also use the `TABLE_NO_ID` statement to create a table without the ID/File column:  
-`TABLE_NO_ID file.cday AS "Date created", title AS "Title" FROM todos/`
+You can also use the `TABLE NO ID` statement to create a table without the ID/File column:  
+`TABLE NO ID file.cday AS "Date created", title AS "Title" FROM todos/`
 
 That would return a table like this:
 ```
@@ -332,7 +332,7 @@ That would return a table like this:
 ```
 
 And an example with metadata conditionals:  
-`TABLE_NO_ID file.cday AS "Date created", title AS "Title" FROM todos/ WHERE [title] IS "Title 2"`
+`TABLE NO ID file.cday AS "Date created", title AS "Title" FROM todos/ WHERE [title] IS "Title 2"`
 
 That would return a table like this:
 ```
@@ -343,3 +343,7 @@ That would return a table like this:
 
 The AS statement is optional. If you don't provide an alias, the metadata
 key will be used as the column name.
+
+**NOTICE: Before TABLE NO ID, there was TABLE_NO_ID that is now DEPRECATED. A warning will be shown
+if you try using TABLE_NO_ID but it will still show the results. This syntax will be removed at a
+later date, so please update your queries until then!**
