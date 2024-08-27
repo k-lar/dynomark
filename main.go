@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -36,6 +38,28 @@ const (
 	TOKEN_GROUP
 	TOKEN_BY
 )
+
+var TokenTypeNames = map[TokenType]string{
+	TOKEN_KEYWORD:     "TOKEN_KEYWORD",
+	TOKEN_IDENTIFIER:  "TOKEN_IDENTIFIER",
+	TOKEN_FUNCTION:    "TOKEN_FUNCTION",
+	TOKEN_NOT:         "TOKEN_NOT",
+	TOKEN_LOGICAL_OP:  "TOKEN_LOGICAL_OP",
+	TOKEN_STRING:      "TOKEN_STRING",
+	TOKEN_NUMBER:      "TOKEN_NUMBER",
+	TOKEN_COMMA:       "TOKEN_COMMA",
+	TOKEN_EOF:         "TOKEN_EOF",
+	TOKEN_TABLE:       "TOKEN_TABLE",
+	TOKEN_TABLE_NO_ID: "TOKEN_TABLE_NO_ID",
+	TOKEN_AS:          "TOKEN_AS",
+	TOKEN_METADATA:    "TOKEN_METADATA",
+	TOKEN_GROUP:       "TOKEN_GROUP",
+	TOKEN_BY:          "TOKEN_BY",
+}
+
+func (t TokenType) String() string {
+	return TokenTypeNames[t]
+}
 
 type Token struct {
 	Type  TokenType
@@ -978,11 +1002,15 @@ func readFromPipe() (string, error) {
 	return string(bytes), nil
 }
 
-func executeQuery(query string) (string, error) {
+func executeQuery(query string, showAST bool) (string, error) {
 	tokens := Lex(query)
 	ast, err := Parse(tokens)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse query: %w", err)
+	}
+
+	if showAST {
+		printTokens(tokens)
 	}
 
 	result, err := Interpret(ast)
@@ -993,11 +1021,28 @@ func executeQuery(query string) (string, error) {
 	return result, nil
 }
 
+func printTokens(tokens []Token) {
+	jsonData, err := json.MarshalIndent(tokens, "", "  ")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Replace enum ints with strings from TokenTypeNames
+	for tokenType, tokenName := range TokenTypeNames {
+		jsonData = bytes.ReplaceAll(jsonData, []byte(fmt.Sprintf("%d", tokenType)), []byte(fmt.Sprintf("\"%s\"", tokenName)))
+	}
+
+	fmt.Println(string(jsonData))
+}
+
 func main() {
 	var query string
 	var err error
 	versionFlag := flag.Bool("v", false, "print the version number")
 	longVersionFlag := flag.Bool("version", false, "print the version number")
+
+	ShowASTFlag := flag.Bool("ast", false, "print the whole AST before showing the results")
 
 	flag.StringVar(&query, "query", "", "The query string to be processe")
 	flag.StringVar(&query, "q", "", "The query string to be processed (shorthand)")
@@ -1027,7 +1072,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	result, err := executeQuery(query)
+	result, err := executeQuery(query, *ShowASTFlag)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
