@@ -32,7 +32,7 @@ const (
 	TOKEN_COMMA
 	TOKEN_EOF
 	TOKEN_TABLE
-	TOKEN_TABLE_NO_ID
+	TOKEN_TABLE_NO_ID // DEPRECATED: Use 'TABLE NO ID' syntax instead.
 	TOKEN_AS
 	TOKEN_METADATA
 	TOKEN_GROUP
@@ -155,6 +155,8 @@ func Lex(input string) []Token {
 			case "TABLE":
 				tokens = append(tokens, Token{Type: TOKEN_TABLE, Value: "TABLE"})
 			case "TABLE_NO_ID":
+				// DEPRECATED: Use 'TABLE NO ID' syntax instead
+				fmt.Fprintf(os.Stderr, "Warning: 'TABLE_NO_ID' token is deprecated. Use 'TABLE NO ID' syntax instead.\n")
 				tokens = append(tokens, Token{Type: TOKEN_TABLE_NO_ID, Value: "TABLE_NO_ID"})
 			case "AS":
 				tokens = append(tokens, Token{Type: TOKEN_AS, Value: "AS"})
@@ -183,6 +185,12 @@ func Lex(input string) []Token {
 			default:
 				if _, err := strconv.Atoi(word); err == nil {
 					tokens = append(tokens, Token{Type: TOKEN_NUMBER, Value: word})
+					// If previous token was 'TABLE' and current word is 'NO', uppercase it
+				} else if len(tokens) > 0 && tokens[len(tokens)-1].Type == TOKEN_TABLE && strings.ToUpper(word) == "NO" {
+					tokens = append(tokens, Token{Type: TOKEN_IDENTIFIER, Value: "NO"})
+					// If previous tokens were 'TABLE' and 'NO', and current word is 'ID', uppercase it
+				} else if len(tokens) > 1 && tokens[len(tokens)-2].Type == TOKEN_TABLE && tokens[len(tokens)-1].Type == TOKEN_IDENTIFIER && strings.ToUpper(word) == "ID" {
+					tokens = append(tokens, Token{Type: TOKEN_IDENTIFIER, Value: "ID"})
 				} else if got_from && !got_where {
 					tokens = append(tokens, Token{Type: TOKEN_STRING, Value: word})
 				} else {
@@ -203,16 +211,26 @@ func Parse(tokens []Token) (*QueryNode, error) {
 
 	if tokens[i].Type == TOKEN_TABLE {
 		query.Type = TABLE
+		// Check for 'NO ID' after 'TABLE'
+		if i+2 < len(tokens) &&
+			tokens[i+1].Type == TOKEN_IDENTIFIER && tokens[i+1].Value == "NO" &&
+			tokens[i+2].Type == TOKEN_IDENTIFIER && tokens[i+2].Value == "ID" {
+			query.Type = TABLE_NO_ID
+			i += 3
+		} else {
+			i++
+		}
 	} else if tokens[i].Type == TOKEN_TABLE_NO_ID {
+		// DEPRECATED: Handle the old TOKEN_TABLE_NO_ID for backward compatibility
 		query.Type = TABLE_NO_ID
+		i++
 	} else {
 		if tokens[i].Type != TOKEN_KEYWORD {
 			return nil, fmt.Errorf("expected valid query type, got %s", tokens[i].Value)
 		}
 		query.Type = parseQueryType(tokens[i].Value)
+		i++
 	}
-
-	i++
 
 	// Parse columns for TABLE queries
 	if query.Type == TABLE || query.Type == TABLE_NO_ID {
