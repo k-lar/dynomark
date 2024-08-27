@@ -141,7 +141,7 @@ Result:
 - [ ] Write unit tests
 ```
 
-List of unchecked tasks in all .md files inside `examples/` directory, grouped by file path:  
+List of unchecked tasks in all .md files inside `todos/` directory, grouped by file path:  
 Query: `TASK FROM todos/ WHERE NOT CHECKED GROUP BY [file.path]`
 
 Result:
