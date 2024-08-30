@@ -734,7 +734,8 @@ func stripYAMLFrontmatter(lines []string) []string {
 func parseTasks(lines []string) []string {
 	var tasks []string
 	for _, line := range lines {
-		if strings.HasPrefix(line, "- [ ]") || strings.HasPrefix(line, "- [x]") || strings.HasPrefix(line, "- [X]") {
+		trimmedLine := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmedLine, "- [ ]") || strings.HasPrefix(trimmedLine, "- [x]") || strings.HasPrefix(trimmedLine, "- [X]") {
 			tasks = append(tasks, line)
 		}
 	}
