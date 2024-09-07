@@ -287,6 +287,7 @@ func Parse(tokens []Token) (*QueryNode, error) {
 		i += newIndex + 1
 	}
 
+	// Parse GROUP BY clause
 	if i < len(tokens) && tokens[i].Type == TOKEN_GROUP {
 		i++
 		if i < len(tokens) && tokens[i].Type == TOKEN_BY {
@@ -471,6 +472,13 @@ func InterpretTableQuery(ast *QueryNode) (string, error) {
 		}
 
 		rows = append(rows, row)
+
+		// HACK: This is here to ensure metadata is printed when query is TABLE.
+		// Fix this by returning metadata from parseMarkdownContent and this function.
+		// When refactored, this should be inside executeQuery function.
+		if printMetadataFlag {
+			printMetadata([]Metadata{metadata})
+		}
 	}
 
 	// Write table headers
@@ -521,6 +529,13 @@ func Interpret(ast *QueryNode) (string, error) {
 
 	if ast.Limit >= 0 && ast.Limit < len(content) {
 		content = content[:ast.Limit]
+	}
+
+	// HACK: This is here because metadata isn't returned far enough in the code.
+	// Fix this by returning metadata from parseMarkdownContent.
+	// When refactored, this should be inside executeQuery function.
+	if printMetadataFlag {
+		printMetadata(metadataList)
 	}
 
 	return strings.Join(content, "\n"), nil
@@ -599,10 +614,10 @@ func parseMarkdownContent(path string, queryType QueryType) ([]string, Metadata,
 						key := strings.ToLower(strings.TrimSpace(parts[0]))
 						value := strings.TrimSpace(parts[1])
 						value = strings.Trim(value, `"`)
-						if b, err := strconv.ParseBool(value); err == nil {
-							metadata[key] = b
-						} else if i, err := strconv.Atoi(value); err == nil {
+						if i, err := strconv.Atoi(value); err == nil {
 							metadata[key] = i
+						} else if b, err := strconv.ParseBool(value); err == nil {
+							metadata[key] = b
 						} else {
 							metadata[key] = value
 						}
@@ -656,10 +671,8 @@ func parseMarkdownContent(path string, queryType QueryType) ([]string, Metadata,
 
 func parseMetadataLine(line string, metadata Metadata) {
 	// Check for metadata in the form of key:: value
-	// TODO: Parse the string yourself without regex
-	if matched, _ := regexp.MatchString(`^\w+ *::`, line); matched {
-		line = strings.Trim(line, " ")
-		parseMetadataPair(line, metadata)
+	if !strings.Contains(line, "::") {
+		return
 	} else if strings.HasPrefix(line, "**") && strings.Contains(line, "::") {
 		line = strings.Trim(line, "* ")
 		parseMetadataPair(line, metadata)
@@ -681,18 +694,30 @@ func parseMetadataLine(line string, metadata Metadata) {
 				break
 			}
 		}
+	} else {
+		parseMetadataPair(line, metadata)
 	}
 }
 
 func parseMetadataPair(pair string, metadata Metadata) {
 	parts := strings.SplitN(pair, "::", 2)
 	if len(parts) == 2 {
-		key := strings.ToLower(strings.TrimSpace(strings.Trim(parts[0], "*")))
+		// INFO:
+		// Key has to adhere to the following rules:
+		// - No leading or trailing spaces
+		// - Has to be lowercase
+		// - Only contain alphanumeric characters and hyphens
+		key := strings.TrimSpace(parts[0])
+		key = strings.ToLower(key)
+		key = strings.ReplaceAll(key, " ", "-")
+		key = strings.ReplaceAll(key, "*", "")
+
 		value := strings.TrimSpace(parts[1])
-		if b, err := strconv.ParseBool(value); err == nil {
-			metadata[key] = b
-		} else if i, err := strconv.Atoi(value); err == nil {
+
+		if i, err := strconv.Atoi(value); err == nil {
 			metadata[key] = i
+		} else if b, err := strconv.ParseBool(value); err == nil {
+			metadata[key] = b
 		} else {
 			metadata[key] = value
 		}
@@ -1040,6 +1065,17 @@ func executeQuery(query string, showAST bool) (string, error) {
 	return result, nil
 }
 
+func printMetadata(metadataList []Metadata) {
+	for _, metadata := range metadataList {
+		jsonData, err := json.MarshalIndent(metadata, "", "  ")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println(string(jsonData))
+	}
+}
+
 func printTokens(tokens []Token) {
 	jsonData, err := json.MarshalIndent(tokens, "", "  ")
 	if err != nil {
@@ -1055,6 +1091,8 @@ func printTokens(tokens []Token) {
 	fmt.Println(string(jsonData))
 }
 
+var printMetadataFlag bool
+
 func main() {
 	var query string
 	var err error
@@ -1062,6 +1100,7 @@ func main() {
 	longVersionFlag := flag.Bool("version", false, "print the version number")
 
 	ShowASTFlag := flag.Bool("ast", false, "print the whole AST before showing the results")
+	flag.BoolVar(&printMetadataFlag, "metadata", false, "print metadata as JSON")
 
 	flag.StringVar(&query, "query", "", "The query string to be processe")
 	flag.StringVar(&query, "q", "", "The query string to be processed (shorthand)")
