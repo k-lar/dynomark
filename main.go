@@ -702,7 +702,7 @@ func parseMetadataPair(pair string, metadata Metadata) {
 func addFileMetadata(path string, metadata Metadata) {
 	fileInfo, err := os.Stat(path)
 	if err == nil {
-		metadata["file.folder"] = filepath.Dir(path)
+		metadata["file.folder"] = filepath.Base(filepath.Dir(path))
 		metadata["file.path"] = path
 		metadata["file.name"] = filepath.Base(path)
 		metadata["file.shortname"] = filepath.Base(path)[:len(filepath.Base(path))-3]
