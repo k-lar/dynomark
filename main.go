@@ -81,8 +81,6 @@ const (
 	TABLE_NO_ID   QueryType = "TABLE_NO_ID"
 )
 
-type ASTNode interface{}
-
 type ColumnDefinition struct {
 	Name  string
 	Alias string
@@ -724,6 +722,7 @@ func parseMetadataPair(pair string, metadata Metadata) {
 	}
 }
 
+// FIXME: Make this function return metadata or accept a pointer to it!!!
 func addFileMetadata(path string, metadata Metadata) {
 	fileInfo, err := os.Stat(path)
 	if err == nil {
@@ -939,14 +938,48 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, []Metada
 		}
 
 		if fileInfo.IsDir() {
-			files, err := filepath.Glob(filepath.Join(path, "*.md"))
-			if err != nil {
-				return nil, nil, err
+			var files []string
+			if queryType == LIST {
+				err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+					if err != nil {
+						return err
+					}
+					if !info.IsDir() && filepath.Ext(path) == ".md" {
+						files = append(files, path)
+					}
+					return nil
+				})
+				if err != nil {
+					return nil, nil, err
+				}
+			} else {
+				files, err = filepath.Glob(filepath.Join(path, "*.md"))
+				if err != nil {
+					return nil, nil, err
+				}
 			}
+
 			if queryType == LIST {
 				for _, file := range files {
 					results = append(results, "- "+filepath.Base(file))
-					metadataList = append(metadataList, Metadata{}) // Empty metadata for LIST queries
+					metadata := make(Metadata)
+
+					// HACK: This is here because I'm stupid and I don't return metadata from addFileMetadata. Fix this.
+					fileInfo, err := os.Stat(file)
+					if err == nil {
+						metadata["file.folder"] = filepath.Base(filepath.Dir(file))
+						metadata["file.path"] = file
+						metadata["file.name"] = filepath.Base(file)
+						metadata["file.shortname"] = filepath.Base(file)[:len(filepath.Base(file))-3]
+						metadata["file.link"] = fmt.Sprintf("[%s](%s)", filepath.Base(file), file)
+						metadata["file.size"] = fileInfo.Size()
+						metadata["file.ctime"] = fileInfo.ModTime().Format(time.RFC3339)
+						metadata["file.cday"] = fileInfo.ModTime().Format("2006-01-02")
+						metadata["file.mtime"] = fileInfo.ModTime().Format(time.RFC3339)
+						metadata["file.mday"] = fileInfo.ModTime().Format("2006-01-02")
+					}
+
+					metadataList = append(metadataList, metadata)
 				}
 			} else {
 				for _, file := range files {
