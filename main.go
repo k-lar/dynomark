@@ -758,7 +758,7 @@ func parseTasks(lines []string) []string {
 	var tasks []string
 	for _, line := range lines {
 		trimmedLine := strings.TrimLeft(line, " \t")
-		if strings.HasPrefix(trimmedLine, "- [ ]") || strings.HasPrefix(trimmedLine, "- [x]") || strings.HasPrefix(trimmedLine, "- [X]") {
+		if isTaskListItem(trimmedLine) {
 			tasks = append(tasks, line)
 		}
 	}
@@ -823,7 +823,7 @@ func parseUnorderedLists(lines []string) []string {
 
 	for i, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmedLine, "-") && !strings.HasPrefix(trimmedLine, "- [") && trimmedLine != "---" {
+		if isUnorderedListItem(trimmedLine) {
 			if len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem[:len(currentItem)-trailingEmptyLines], "\n"))
 				currentItem = nil
@@ -832,7 +832,7 @@ func parseUnorderedLists(lines []string) []string {
 			currentItem = append(currentItem, line)
 			inList = true
 			indentLevel = len(line) - len(trimmedLine)
-		} else if inList && (strings.HasPrefix(trimmedLine, "-") || len(line)-len(strings.TrimLeft(line, " ")) > indentLevel) {
+		} else if inList && (isUnorderedListItem(line) || len(line)-len(strings.TrimLeft(line, " ")) > indentLevel) {
 			currentItem = append(currentItem[:len(currentItem)-trailingEmptyLines], line)
 			trailingEmptyLines = 0
 		} else if inList && trimmedLine == "" {
@@ -983,6 +983,30 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, []Metada
 	}
 
 	return results, metadataList, nil
+}
+
+func isUnorderedListItem(line string) bool {
+	trimmedLine := strings.TrimSpace(line)
+	return (strings.HasPrefix(trimmedLine, "- ") || strings.HasPrefix(trimmedLine, "* ")) &&
+		!strings.HasPrefix(trimmedLine, "- [") &&
+		!strings.HasPrefix(trimmedLine, "- [ ]") &&
+		!strings.HasPrefix(trimmedLine, "- [.]") &&
+		!strings.HasPrefix(trimmedLine, "- [o]") &&
+		!strings.HasPrefix(trimmedLine, "- [O]") &&
+		!strings.HasPrefix(trimmedLine, "- [0]") &&
+		!strings.HasPrefix(trimmedLine, "- [x]") &&
+		!strings.HasPrefix(trimmedLine, "- [X]")
+}
+
+func isTaskListItem(line string) bool {
+	trimmedLine := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmedLine, "- [ ]") ||
+		strings.HasPrefix(trimmedLine, "- [x]") ||
+		strings.HasPrefix(trimmedLine, "- [X]") ||
+		strings.HasPrefix(trimmedLine, "- [.]") ||
+		strings.HasPrefix(trimmedLine, "- [o]") ||
+		strings.HasPrefix(trimmedLine, "- [O]") ||
+		strings.HasPrefix(trimmedLine, "- [0]")
 }
 
 func applyConditions(item string, metadata Metadata, conditions []ConditionNode) bool {
