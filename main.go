@@ -980,7 +980,6 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, []Metada
 func isUnorderedListItem(line string) bool {
 	trimmedLine := strings.TrimSpace(line)
 	return (strings.HasPrefix(trimmedLine, "- ") || strings.HasPrefix(trimmedLine, "* ")) &&
-		!strings.HasPrefix(trimmedLine, "- [") &&
 		!strings.HasPrefix(trimmedLine, "- [ ]") &&
 		!strings.HasPrefix(trimmedLine, "- [.]") &&
 		!strings.HasPrefix(trimmedLine, "- [o]") &&
