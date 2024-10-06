@@ -861,34 +861,26 @@ func parseOrderedLists(lines []string) []string {
 	var items []string
 	var currentItem []string
 	inList := false
-	indentLevel := 0
 
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-		if matched, _ := regexp.MatchString(`^\d+\.\s`, trimmedLine); matched && (!inList || len(line)-len(strings.TrimLeft(line, " ")) <= indentLevel) {
-			if len(currentItem) > 0 {
+		if isOrderedListItem(trimmedLine) {
+			if inList && len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem, "\n"))
 				currentItem = nil
 			}
 			currentItem = append(currentItem, line)
 			inList = true
-			indentLevel = len(line) - len(trimmedLine)
-		} else if trimmedLine == "" && inList {
+		} else if inList && trimmedLine == "" {
 			if len(currentItem) > 0 {
 				items = append(items, strings.Join(currentItem, "\n"))
 				currentItem = nil
 			}
 			inList = false
-			indentLevel = 0
-		} else if inList && (strings.HasPrefix(trimmedLine, "") || len(line)-len(strings.TrimLeft(line, " ")) > indentLevel) {
+		} else if inList {
 			currentItem = append(currentItem, line)
 		} else {
-			if len(currentItem) > 0 {
-				items = append(items, strings.Join(currentItem, "\n"))
-				currentItem = nil
-			}
 			inList = false
-			indentLevel = 0
 		}
 	}
 
@@ -996,6 +988,12 @@ func isUnorderedListItem(line string) bool {
 		!strings.HasPrefix(trimmedLine, "- [0]") &&
 		!strings.HasPrefix(trimmedLine, "- [x]") &&
 		!strings.HasPrefix(trimmedLine, "- [X]")
+}
+
+func isOrderedListItem(line string) bool {
+	trimmedLine := strings.TrimSpace(line)
+	matched, _ := regexp.MatchString(`^\d+(\.\d+)*\.\s`, trimmedLine)
+	return matched
 }
 
 func isTaskListItem(line string) bool {
