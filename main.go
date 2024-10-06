@@ -9,11 +9,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -793,7 +793,7 @@ func parseParagraphs(lines []string) []string {
 		}
 
 		// Skip ordered list items
-		if matched, _ := regexp.MatchString(`^\d+\.\s`, line); matched {
+		if isOrderedListItem(line) {
 			inList = true
 			continue
 		}
@@ -991,8 +991,19 @@ func isUnorderedListItem(line string) bool {
 
 func isOrderedListItem(line string) bool {
 	trimmedLine := strings.TrimSpace(line)
-	matched, _ := regexp.MatchString(`^\d+(\.\d+)*\.\s`, trimmedLine)
-	return matched
+	if len(trimmedLine) == 0 || !unicode.IsNumber(rune(trimmedLine[0])) {
+		return false
+	}
+
+	for i, char := range trimmedLine {
+		if char == ' ' && i > 0 && trimmedLine[i-1] == '.' {
+			return true
+		}
+		if !unicode.IsNumber(char) && char != '.' {
+			return false
+		}
+	}
+	return false
 }
 
 func isTaskListItem(line string) bool {
