@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -1114,15 +1113,24 @@ func printMetadata(metadataList []Metadata) {
 }
 
 func printTokens(tokens []Token) {
-	jsonData, err := json.MarshalIndent(tokens, "", "  ")
+	type jsonToken struct {
+		Type  string `json:"Type"`
+		Value string `json:"Value"`
+	}
+
+	var jsonTokens []jsonToken
+
+	for _, token := range tokens {
+		jsonTokens = append(jsonTokens, jsonToken{
+			Type:  TokenTypeNames[token.Type],
+			Value: token.Value,
+		})
+	}
+
+	jsonData, err := json.MarshalIndent(jsonTokens, "", "  ")
 	if err != nil {
 		fmt.Println(err)
 		return
-	}
-
-	// Replace enum ints with strings from TokenTypeNames
-	for tokenType, tokenName := range TokenTypeNames {
-		jsonData = bytes.ReplaceAll(jsonData, []byte(fmt.Sprintf("%d", tokenType)), []byte(fmt.Sprintf("\"%s\"", tokenName)))
 	}
 
 	fmt.Println(string(jsonData))
