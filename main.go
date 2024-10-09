@@ -16,7 +16,7 @@ import (
 	"unicode/utf8"
 )
 
-var version string = "0.1.0"
+var version string = "0.1.1"
 
 type TokenType int
 
@@ -571,10 +571,8 @@ func groupContent(content []string, metadataList []Metadata, ast *QueryNode) (st
 		result.WriteString(fmt.Sprintf("- %s\n", key))
 		for _, item := range groups[key] {
 			switch ast.Type {
-			case TASK, UNORDEREDLIST, ORDEREDLIST:
+			case TASK, UNORDEREDLIST, ORDEREDLIST, PARAGRAPH, FENCEDCODE:
 				result.WriteString(fmt.Sprintf("    %s\n", item))
-			case PARAGRAPH, FENCEDCODE:
-				result.WriteString(fmt.Sprintf("    %s\n\n", item))
 			}
 		}
 		result.WriteString("\n")
@@ -768,6 +766,7 @@ func parseParagraphs(lines []string) []string {
 	var paragraphs []string
 	var inCodeBlock bool
 	var inList bool
+	var emptyLineCount int
 
 	for _, line := range lines {
 		// Skip fenced blocks and their content
@@ -807,7 +806,28 @@ func parseParagraphs(lines []string) []string {
 			continue
 		}
 
+		// Handle multiple empty lines
+		if strings.TrimSpace(line) == "" {
+			emptyLineCount++
+			// Allow only the first empty line, skip the rest
+			if emptyLineCount > 1 {
+				continue
+			}
+		} else {
+			emptyLineCount = 0 // Reset when a non-empty line is found
+		}
+
 		paragraphs = append(paragraphs, line)
+	}
+
+	// Remove the first element if it's an empty line
+	if len(paragraphs) > 0 && strings.TrimSpace(paragraphs[0]) == "" {
+		paragraphs = paragraphs[1:]
+	}
+
+	// Remove the last element if it's an empty line
+	if len(paragraphs) > 0 && strings.TrimSpace(paragraphs[len(paragraphs)-1]) == "" {
+		paragraphs = paragraphs[:len(paragraphs)-1]
 	}
 
 	return paragraphs
