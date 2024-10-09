@@ -1162,8 +1162,10 @@ func main() {
 		if query == "" {
 			// Data is being piped to stdin
 			query, err = readFromPipe()
-		} else {
-			fmt.Println("ERROR: Can't read from pipe when query is given as a parameter already.")
+			if err != nil {
+				fmt.Println("ERROR: Unable to read from pipe:", err)
+				os.Exit(1)
+			}
 		}
 	} else if query == "" {
 		fmt.Println("No query provided. Use -q or --query to specify the query string.")
