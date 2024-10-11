@@ -53,8 +53,8 @@ sudo make uninstall
         - [X] TABLE NO ID support (A TABLE query without ID/File column)
         - [X] Support AS statements (e.g. TABLE author AS "Author", published AS "Date published" FROM ...)
 - [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
+- [X] [🎉 Visual Studio Code extension 🎉](https://marketplace.visualstudio.com/items?itemName=k-lar.vscode-dynomark) - Github repo coming soon!
 - [ ] Emacs plugin
-- [ ] Visual Studio Code plugin
 - [ ] Query syntax doc
 
 ## Examples
