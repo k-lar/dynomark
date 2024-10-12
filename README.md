@@ -10,8 +10,8 @@ a similar experience to Dataview (but very barebones for now).
 
 **You can download the executables here:**
 - [Download for Windows](https://github.com/k-lar/dynomark/releases/latest/downloads/dynomark.exe)
-- [Download for MacOS](https://github.com/k-lar/dynomark/releases/latest/downloads/dynomark-macos)
-- [Download for Linux](https://github.com/k-lar/dynomark/releases/latest/downloads/dynomark-linux)
+- [Download for MacOS](https://github.com/k-lar/dynomark/releases/latest/download/dynomark-macos)
+- [Download for Linux](https://github.com/k-lar/dynomark/releases/latest/download/dynomark-linux)
 
 **Or if you want to build it yourself:**
 
