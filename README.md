@@ -34,7 +34,7 @@ sudo make uninstall
 ```
 
 > [!NOTE]
-> For MacOS users:
+> For MacOS users:  
 > If you want to install the program to `/usr/local/bin/` like `brew` does, you
 > have to set the `PREFIX` variable to `/usr/local` like so:
 > ```bash
@@ -46,7 +46,7 @@ sudo make uninstall
 > ```
 
 > [!NOTE]
-> For Windows users:
+> For Windows users:  
 > The simplest way for you to compile the program is to use the `go build` command:
 > ```bash
 > go build -o dynomark.exe
