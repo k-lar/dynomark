@@ -83,7 +83,7 @@ sudo make uninstall
         - [X] Support AS statements (e.g. TABLE author AS "Author", published AS "Date published" FROM ...)
 - [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
 - [X] [🎉 Visual Studio Code extension 🎉](https://marketplace.visualstudio.com/items?itemName=k-lar.vscode-dynomark) - Github repo coming soon!
-- [ ] Emacs plugin
+- [X] [🎉 Emacs package 🎉](https://github.com/k-lar/dynomark.el)
 - [ ] Query syntax doc
 
 ## Examples
