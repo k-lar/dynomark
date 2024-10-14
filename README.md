@@ -3,10 +3,17 @@
 Dynomark strives to be a markdown query language engine, similar to obsidian's
 [Dataview plugin](https://github.com/blacksmithgu/obsidian-dataview).
 
-This program can be used with editors like neovim and emacs to provide a similar
-experience to Dataview (but very barebones for now).
+This program can be used with editors like neovim, vscode and emacs to provide
+a similar experience to Dataview (but very barebones for now).
 
 ## Installation
+
+**You can download the executables here:**
+- [Download for Windows](https://github.com/k-lar/dynomark/releases/latest/downloads/dynomark.exe)
+- [Download for MacOS](https://github.com/k-lar/dynomark/releases/latest/download/dynomark-macos)
+- [Download for Linux](https://github.com/k-lar/dynomark/releases/latest/download/dynomark-linux)
+
+**Or if you want to build it yourself:**
 
 Requirements:
 - Go (1.22.5)
@@ -25,6 +32,28 @@ sudo make install
 # If you want to uninstall the program
 sudo make uninstall
 ```
+
+> [!NOTE]
+> For MacOS users:  
+> If you want to install the program to `/usr/local/bin/` like `brew` does, you
+> have to set the `PREFIX` variable to `/usr/local` like so:
+> ```bash
+> sudo make PREFIX=/usr/local install
+> ```
+> And to uninstall:
+> ```bash
+> sudo make PREFIX=/usr/local uninstall
+> ```
+
+> [!NOTE]
+> For Windows users:  
+> The simplest way for you to compile the program is to use the `go build` command:
+> ```bash
+> go build -o dynomark.exe
+> ```
+> And then you can run the program with `.\dynomark.exe`.
+> If you want dynomark to be available as a command in your terminal, you have to add
+> dynomark.exe to your PATH environment variable.
 
 ## Roadmap
 
@@ -53,8 +82,8 @@ sudo make uninstall
         - [X] TABLE NO ID support (A TABLE query without ID/File column)
         - [X] Support AS statements (e.g. TABLE author AS "Author", published AS "Date published" FROM ...)
 - [X] [🎉 Neovim plugin 🎉](https://github.com/k-lar/dynomark.nvim)
-- [X] [🎉 Visual Studio Code extension 🎉](https://marketplace.visualstudio.com/items?itemName=k-lar.vscode-dynomark) - Github repo coming soon!
-- [ ] Emacs plugin
+- [X] [🎉 Visual Studio Code extension 🎉](https://marketplace.visualstudio.com/items?itemName=k-lar.vscode-dynomark) - [Github repo](https://github.com/k-lar/vscode-dynomark)
+- [X] [🎉 Emacs package 🎉](https://github.com/k-lar/dynomark.el)
 - [ ] Query syntax doc
 
 ## Examples
