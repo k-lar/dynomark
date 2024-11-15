@@ -17,7 +17,7 @@ run:
 	./${BINARY_NAME}
 
 install:
-	# Create the bin directory if it doesn't exist (Mac doesn't support install -D)
+	@# Create the bin directory if it doesn't exist (Mac doesn't support install -D)
 	@if [ ! -d $(DESTDIR)$(PREFIX)/bin ]; then \
 		mkdir -p $(DESTDIR)$(PREFIX)/bin; \
 	fi
