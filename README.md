@@ -57,7 +57,7 @@ sudo make uninstall
 
 ## Roadmap
 
-- [ ] Completed engine
+- [X] Completed engine
     - [X] LIST support
     - [X] TASKS support
     - [X] PARAGRAPH support
@@ -69,9 +69,9 @@ sudo make uninstall
         - [X] AND
         - [X] OR
     - [X] IS statement (equals / ==)
-    - [ ] ORDER BY
-        - [ ] ASCENDING
-        - [ ] DESCENDING
+    - [X] SORT (Order by)
+        - [X] ASCENDING
+        - [X] DESCENDING
     - [X] GROUP BY (metadata)
         - [X] Limit max number of groups
         - [X] Limit the results under each group
@@ -288,6 +288,27 @@ func main() {
 }
 ```
 
+### Sorting
+
+As of version `0.2.0` dynomark supports sorting table results by metadata fields
+and sorting regular queries alphabetically (ascending and descending).
+
+All tasks in `examples/test.md` sorted by their checked status in ascending order:
+Query: `TASK FROM "examples/test.md" WHERE NOT CHECKED SORT ASC`
+
+Result:
+
+```
+- [ ] Implement DynoMark parser
+- [ ] Implement DynoMark parser but better
+- [ ] Task 1
+- [ ] Task 3
+- [ ] Task 6
+- [ ] Task 7
+- [ ] Test 1
+- [ ] Write unit tests
+```
+
 ## Metadata support
 
 Dynomark supports metadata in the form of key-value pairs. For now, you can use the
@@ -373,6 +394,31 @@ That would return a table like this:
 The AS statement is optional. If you don't provide an alias, the metadata
 key will be used as the column name.
 
-**NOTICE: Before TABLE NO ID, there was TABLE_NO_ID that is now DEPRECATED. A warning will be shown
-if you try using TABLE_NO_ID but it will still show the results. This syntax will be removed at a
-later date, so please update your queries until then!**
+Sorting is also supported in tables. You can sort by any present metadata key
+in either ascending or descending order.
+
+We'll take a previous example and sort it by the title in descending order:
+`TABLE NO ID file.cday AS "Date created", title AS "Title" FROM todos/ SORT [title] DESC`
+
+That would return a table like this:
+
+```
+| Date created | Title   |
+|--------------|---------|
+| 2024-08-21   | Title 5 |
+| 2024-08-20   | Title 4 |
+| 2024-08-19   | Title 3 |
+| 2024-08-18   | Title 2 |
+| 2024-08-17   | Title 1 |
+```
+
+If you want to sort by multiple columns, you can do so by separating the columns with a comma:
+
+`TABLE NO ID file.cday AS "Date created", title AS "Title" FROM todos/ SORT [title] ASC, [file.cday] DESC`
+
+### Deprecation
+
+> [!WARNING]
+> Before TABLE NO ID, there was TABLE_NO_ID that is now **DEPRECATED**.
+> A warning will be shown if you try using TABLE_NO_ID but it will still show the results.
+> This syntax will be removed at a later date, so please update your queries until then!**
