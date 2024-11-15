@@ -16,7 +16,7 @@ import (
 	"unicode/utf8"
 )
 
-var version string = "0.1.1"
+var version string = "0.2.0"
 
 type TokenType int
 
@@ -36,6 +36,7 @@ const (
 	TOKEN_METADATA
 	TOKEN_GROUP
 	TOKEN_BY
+	TOKEN_SORT
 )
 
 var TokenTypeNames = map[TokenType]string{
@@ -54,6 +55,7 @@ var TokenTypeNames = map[TokenType]string{
 	TOKEN_METADATA:    "TOKEN_METADATA",
 	TOKEN_GROUP:       "TOKEN_GROUP",
 	TOKEN_BY:          "TOKEN_BY",
+	TOKEN_SORT:        "TOKEN_SORT",
 }
 
 func (t TokenType) String() string {
@@ -93,6 +95,12 @@ type QueryNode struct {
 	GroupLimit int
 	Limit      int
 	Columns    []ColumnDefinition
+	Sorts      []SortNode
+}
+
+type SortNode struct {
+	Metadata      string
+	SortDirection string
 }
 
 type WhereNode struct {
@@ -123,6 +131,7 @@ func Lex(input string) []Token {
 
 	got_from := false
 	got_where := false
+	got_sort := false
 	insideQuotes := false
 	var quotedString string
 
@@ -167,6 +176,9 @@ func Lex(input string) []Token {
 				got_where = true
 			case "GROUP":
 				tokens = append(tokens, Token{Type: TOKEN_GROUP, Value: "GROUP"})
+			case "SORT":
+				tokens = append(tokens, Token{Type: TOKEN_SORT, Value: "SORT"})
+				got_sort = true
 			case "BY":
 				tokens = append(tokens, Token{Type: TOKEN_BY, Value: "BY"})
 			case ",":
@@ -188,7 +200,7 @@ func Lex(input string) []Token {
 					// If previous tokens were 'TABLE' and 'NO', and current word is 'ID', uppercase it
 				} else if len(tokens) > 1 && tokens[len(tokens)-2].Type == TOKEN_TABLE && tokens[len(tokens)-1].Type == TOKEN_IDENTIFIER && strings.ToUpper(word) == "ID" {
 					tokens = append(tokens, Token{Type: TOKEN_IDENTIFIER, Value: "ID"})
-				} else if got_from && !got_where {
+				} else if got_from && !got_where && !got_sort {
 					tokens = append(tokens, Token{Type: TOKEN_STRING, Value: word})
 				} else {
 					tokens = append(tokens, Token{Type: TOKEN_IDENTIFIER, Value: word})
@@ -262,11 +274,12 @@ func Parse(tokens []Token) (*QueryNode, error) {
 	// Parse FROM clause
 	if tokens[i].Value != "FROM" {
 		return nil, fmt.Errorf("expected FROM, got %s", tokens[i].Value)
+	} else {
+		i++
 	}
-	i++
 
 	for i < len(tokens) && tokens[i].Type != TOKEN_KEYWORD {
-		if tokens[i].Type == TOKEN_GROUP {
+		if tokens[i].Type == TOKEN_GROUP || tokens[i].Type == TOKEN_SORT {
 			break
 		} else if tokens[i].Type == TOKEN_STRING {
 			query.From = append(query.From, tokens[i].Value)
@@ -281,6 +294,16 @@ func Parse(tokens []Token) (*QueryNode, error) {
 			return nil, fmt.Errorf("error parsing WHERE clause: %w", err)
 		}
 		query.Where = whereNode
+		i += newIndex + 1
+	}
+
+	// Parse SORT clause
+	if i < len(tokens) && tokens[i].Value == "SORT" {
+		sortNodes, newIndex, err := parseSortClause(tokens[i+1:], query)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing SORT clause: %w", err)
+		}
+		query.Sorts = sortNodes
 		i += newIndex + 1
 	}
 
@@ -343,17 +366,128 @@ func parseQueryType(value string) QueryType {
 	}
 }
 
+func parseSortClause(tokens []Token, queryNode *QueryNode) ([]SortNode, int, error) {
+	i := 0
+	var gotGroup bool
+	var gotLimit bool
+	var sortNodes []SortNode
+	var sortTokens []Token
+
+	// Isolate the sort tokens here
+	for i < len(tokens) && tokens[i].Value != "LIMIT" && tokens[i].Value != "GROUP" && tokens[i].Type != TOKEN_EOF {
+		switch tokens[i].Type {
+		case TOKEN_METADATA:
+			sortTokens = append(sortTokens, tokens[i])
+		case TOKEN_COMMA:
+			sortTokens = append(sortTokens, tokens[i])
+		case TOKEN_STRING, TOKEN_IDENTIFIER:
+			if strings.ToUpper(tokens[i].Value) == "DESC" || strings.ToUpper(tokens[i].Value) == "ASC" {
+				sortTokens = append(sortTokens, tokens[i])
+			}
+		}
+
+		i++
+	}
+
+	// Split sortTokens into separate sortTokens based on commas
+	i = 0
+	newSortTokens := make([][]Token, 0)
+	for i < len(sortTokens) {
+		if sortTokens[i].Type == TOKEN_COMMA {
+			i++
+			continue
+		}
+		var sortToken []Token
+		for i < len(sortTokens) && sortTokens[i].Type != TOKEN_COMMA {
+			sortToken = append(sortToken, sortTokens[i])
+			i++
+		}
+		newSortTokens = append(newSortTokens, sortToken)
+	}
+
+	// Parse each sortToken and create a SortNode
+	for _, sortToken := range newSortTokens {
+		sortNode := SortNode{SortDirection: "ASC"}
+		for _, token := range sortToken {
+			if queryNode.Type == TABLE || queryNode.Type == TABLE_NO_ID {
+				if token.Type == TOKEN_METADATA {
+					sortNode.Metadata = token.Value
+				} else if strings.ToUpper(token.Value) == "DESC" {
+					if sortNode.Metadata != "" {
+						sortNode.SortDirection = "DESC"
+					} else {
+						return sortNodes, 0, fmt.Errorf("expected metadata field before DESC, got DESC")
+					}
+				} else if strings.ToUpper(token.Value) == "ASC" {
+					if sortNode.Metadata != "" {
+						sortNode.SortDirection = "ASC"
+					} else {
+						return sortNodes, 0, fmt.Errorf("expected metadata field before ASC, got ASC")
+					}
+				} else if token.Value == "GROUP" {
+					gotGroup = true
+					break
+				} else if token.Value == "LIMIT" {
+					gotLimit = true
+					break
+				} else {
+					return sortNodes, 0, fmt.Errorf("expected metadata field or DESC/ASC, got %s", token.Value)
+				}
+			} else {
+				if token.Type == TOKEN_METADATA {
+					return sortNodes, 0, fmt.Errorf("metadata field not allowed in non-TABLE queries")
+				} else if strings.ToUpper(token.Value) == "DESC" {
+					sortNode.SortDirection = "DESC"
+				} else if strings.ToUpper(token.Value) == "ASC" {
+					sortNode.SortDirection = "ASC"
+				} else if token.Value == "GROUP" {
+					gotGroup = true
+					break
+				} else if token.Value == "LIMIT" {
+					gotLimit = true
+					break
+				} else {
+					return sortNodes, 0, fmt.Errorf("expected DESC/ASC, got %s", token.Value)
+				}
+			}
+		}
+
+		if gotGroup || gotLimit {
+			break
+		}
+
+		sortNodes = append(sortNodes, sortNode)
+	}
+
+	// If querytype not table or table_no_id, take the last sort node and return just that
+	if queryNode.Type != TABLE && queryNode.Type != TABLE_NO_ID {
+		if len(sortNodes) == 0 {
+			sortNode := SortNode{SortDirection: "ASC"}
+			sortNodes = append(sortNodes, sortNode)
+		} else {
+			sortNodes = sortNodes[len(sortNodes)-1:]
+		}
+
+	}
+
+	return sortNodes, i, nil
+}
+
 func parseWhereClause(tokens []Token) (*WhereNode, int, error) {
 	whereNode := &WhereNode{}
 	i := 0
 	var currentCondition ConditionNode
 	var logicalOp string
 	var gotGroup bool
+	var gotSort bool
 
 	for i < len(tokens) && tokens[i].Value != "LIMIT" {
 		switch tokens[i].Type {
 		case TOKEN_GROUP:
 			gotGroup = true
+			break
+		case TOKEN_SORT:
+			gotSort = true
 			break
 		case TOKEN_METADATA:
 			currentCondition.IsMetadata = true
@@ -379,7 +513,7 @@ func parseWhereClause(tokens []Token) (*WhereNode, int, error) {
 				logicalOp = ""
 			}
 		}
-		if gotGroup {
+		if gotGroup || gotSort {
 			break
 		}
 		i++
@@ -395,7 +529,6 @@ func InterpretTableQuery(ast *QueryNode) (string, error) {
 	if ast.Type == TABLE {
 		headers = append(headers, "File")
 	}
-	// headers = append(headers, ast.Columns...)
 	for _, col := range ast.Columns {
 		headers = append(headers, col.Alias)
 	}
@@ -408,6 +541,7 @@ func InterpretTableQuery(ast *QueryNode) (string, error) {
 
 	// Collect all rows and calculate max width for each column
 	var rows [][]string
+	var rowsMetadata []map[string]interface{} // Store metadata for sorting
 	var paths []string
 
 	for _, path := range ast.From {
@@ -469,6 +603,7 @@ func InterpretTableQuery(ast *QueryNode) (string, error) {
 		}
 
 		rows = append(rows, row)
+		rowsMetadata = append(rowsMetadata, metadata)
 
 		// HACK: This is here to ensure metadata is printed when query is TABLE.
 		// Fix this by returning metadata from parseMarkdownContent and this function.
@@ -476,6 +611,64 @@ func InterpretTableQuery(ast *QueryNode) (string, error) {
 		if printMetadataFlag {
 			printMetadata([]Metadata{metadata})
 		}
+	}
+
+	// Sort the rows based on multiple fields
+	if len(ast.Sorts) > 0 {
+		sort.Slice(rows, func(i, j int) bool {
+			// Compare rows based on each sort criterion
+			for _, sortNode := range ast.Sorts {
+				// Find the column index for the metadata field
+				colIndex := -1
+				if sortNode.Metadata == "File" && ast.Type == TABLE {
+					colIndex = 0
+				} else {
+					for idx, col := range ast.Columns {
+						if col.Name == sortNode.Metadata {
+							colIndex = idx
+							if ast.Type == TABLE {
+								colIndex++ // Adjust for File column
+							}
+							break
+						}
+					}
+				}
+
+				if colIndex == -1 {
+					continue
+				}
+
+				// Get values to compare
+				val1 := rows[i][colIndex]
+				val2 := rows[j][colIndex]
+
+				// Try to compare as numbers first
+				num1, err1 := strconv.ParseFloat(val1, 64)
+				num2, err2 := strconv.ParseFloat(val2, 64)
+
+				var compareResult int
+				if err1 == nil && err2 == nil {
+					// Numeric comparison
+					if num1 < num2 {
+						compareResult = -1
+					} else if num1 > num2 {
+						compareResult = 1
+					}
+				} else {
+					// String comparison
+					compareResult = strings.Compare(val1, val2)
+				}
+
+				// If values are different, return the comparison result
+				if compareResult != 0 {
+					if sortNode.SortDirection == "DESC" {
+						return compareResult > 0
+					}
+					return compareResult < 0
+				}
+			}
+			return false // If all values are equal
+		})
 	}
 
 	// Write table headers
@@ -513,6 +706,23 @@ func Interpret(ast *QueryNode) (string, error) {
 	content, metadataList, err := parseMarkdownFiles(ast.From, ast.Type)
 	if err != nil {
 		return "", err
+	}
+
+	// Sort content ASC or DESC
+	// If it's not a table, ast.Sorts will only have one element
+	// Here you can't sort by metadata, so just sort alphabetically
+	// Use NaturalSort for sorting because it's nicer :)
+	if len(ast.Sorts) > 0 {
+		if ast.Sorts[0].SortDirection == "DESC" {
+			sort.Slice(content, func(i, j int) bool {
+				return NaturalSort(content[i], content[j])
+			})
+		} else {
+			sort.Slice(content, func(i, j int) bool {
+				sorted := NaturalSort(content[i], content[j])
+				return !sorted
+			})
+		}
 	}
 
 	if ast.Where != nil {
