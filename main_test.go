@@ -4,8 +4,6 @@ import (
     "testing"
 )
 
-// TestHelloName calls greetings.Hello with a name, checking
-// for a valid return value.
 func TestMetadataQuery(t *testing.T) {
     query := "LIST FROM \"examples/\" WHERE [author] IS Shakespeare"
     expectedOutput := "- shakespeare_quotes.md" 
