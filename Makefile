@@ -12,6 +12,9 @@ build-macos:
 build-windows:
 	GOOS=windows GOARCH=amd64 go build -o ${BINARY_NAME}.exe .
 
+test:
+	go test -v ./...
+
 run:
 	go build -o ${BINARY_NAME} .
 	./${BINARY_NAME}
