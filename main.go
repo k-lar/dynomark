@@ -857,6 +857,8 @@ func parseMarkdownContent(path string, queryType QueryType) ([]string, Metadata,
 
 	var parsedContent []string
 	switch queryType {
+	case LIST:
+		parsedContent = nil
 	case TASK:
 		parsedContent = parseTasks(lines)
 	case PARAGRAPH:
@@ -1165,8 +1167,10 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, []Metada
 				if !info.IsDir() && filepath.Ext(filePath) == ".md" {
 					if queryType == LIST {
 						results = append(results, "- "+filepath.Base(filePath))
-						metadata := make(Metadata)
-						addFileMetadata(filePath, &metadata)
+						_, metadata, err := parseMarkdownContent(filePath, queryType)
+						if err != nil {
+							return err
+						}
 						metadataList = append(metadataList, metadata)
 					} else {
 						content, metadata, err := parseMarkdownContent(filePath, queryType)
@@ -1186,9 +1190,11 @@ func parseMarkdownFiles(paths []string, queryType QueryType) ([]string, []Metada
 			}
 		} else {
 			if queryType == LIST {
-				results = append(results, filepath.Base(path))
-				metadata := make(Metadata)
-				addFileMetadata(path, &metadata)
+				results = append(results, "- "+filepath.Base(path))
+				_, metadata, err := parseMarkdownContent(path, queryType)
+				if err != nil {
+					return nil, nil, err
+				}
 				metadataList = append(metadataList, metadata)
 			} else {
 				content, metadata, err := parseMarkdownContent(path, queryType)
