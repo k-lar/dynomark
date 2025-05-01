@@ -16,7 +16,7 @@ import (
 	"unicode/utf8"
 )
 
-var version string = "0.2.0"
+var version string = "0.2.1"
 
 type TokenType int
 
