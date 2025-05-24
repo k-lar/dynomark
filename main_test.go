@@ -10,7 +10,20 @@ type TestQuery struct {
 	expected string
 }
 
-func TestMetadataQuery(t *testing.T) {
+func runTestQueries(t *testing.T, queries []TestQuery) {
+	for _, test := range queries {
+		msg, err := executeQuery(test.query, false)
+		if err != nil {
+			t.Errorf("Error executing query: %v", err)
+			continue
+		}
+		if msg != test.expected {
+			t.Errorf("\nQuery: %s\nExpected output:\n%s\nGot:\n%s", test.query, test.expected, msg)
+		}
+	}
+}
+
+func TestListQueries(t *testing.T) {
 	queries := []TestQuery{
 		{
 			name:  "LIST query on a directory",
@@ -19,6 +32,12 @@ func TestMetadataQuery(t *testing.T) {
 - tasks.md
 - test.md`,
 		},
+	}
+	runTestQueries(t, queries)
+}
+
+func TestParagraphQueries(t *testing.T) {
+	queries := []TestQuery{
 		{
 			name:  "PARAGRAPH query with a single file",
 			query: "PARAGRAPH FROM \"examples/tasks.md\"",
@@ -52,6 +71,12 @@ consectetur cupidatat.`,
 
 What's cool:`,
 		},
+	}
+	runTestQueries(t, queries)
+}
+
+func TestTaskQueries(t *testing.T) {
+	queries := []TestQuery{
 		{
 			name:  "TASK query with a single file",
 			query: "TASK FROM \"examples/tasks.md\"",
@@ -80,6 +105,12 @@ What's cool:`,
 - [ ] Task 6
 - [ ] Task 7`,
 		},
+	}
+	runTestQueries(t, queries)
+}
+
+func TestUnorderedListQueries(t *testing.T) {
+	queries := []TestQuery{
 		{
 			name:  "UNORDEREDLIST query with a single file",
 			query: "UNORDEREDLIST FROM \"examples/test.md\"",
@@ -126,14 +157,5 @@ What's cool:`,
 		},
 	}
 
-	for _, test := range queries {
-		msg, err := executeQuery(test.query, false)
-		if err != nil {
-			t.Errorf("Error executing query: %v", err)
-			continue
-		}
-		if msg != test.expected {
-			t.Errorf("\nQuery: %s\nExpected output:\n%s\nGot:\n%s", test.query, test.expected, msg)
-		}
-	}
+	runTestQueries(t, queries)
 }
